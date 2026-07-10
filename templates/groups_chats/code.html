@@ -808,9 +808,9 @@
       const mobileNav = document.getElementById('mobile-bottom-nav');
       const desktopNav = document.getElementById('desktop-bottom-nav');
       const fab = document.getElementById('create-group-fab');
-      if (mobileNav) mobileNav.classList.remove('hidden');
-      if (desktopNav) desktopNav.classList.remove('hidden');
-      if (fab) fab.classList.remove('hidden');
+      if (mobileNav) mobileNav.style.display = '';
+      if (desktopNav) desktopNav.style.display = '';
+      if (fab) fab.style.display = '';
     }
 
     function updateMembershipUI(group) {
@@ -886,9 +886,9 @@
       const mobileNav = document.getElementById('mobile-bottom-nav');
       const desktopNav = document.getElementById('desktop-bottom-nav');
       const fab = document.getElementById('create-group-fab');
-      if (mobileNav) mobileNav.classList.add('hidden');
-      if (desktopNav) desktopNav.classList.add('hidden');
-      if (fab) fab.classList.add('hidden');
+      if (mobileNav) mobileNav.style.display = 'none';
+      if (desktopNav) desktopNav.style.display = 'none';
+      if (fab) fab.style.display = 'none';
 
       const headerActions = document.getElementById('chat-header-actions');
       if (headerActions) headerActions.innerHTML = '';
