@@ -170,7 +170,7 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
         # 3. Stream from Gemini REST
         if gemini_key:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key={gemini_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse&key={gemini_key}"
                 contents = []
                 for m in history:
                     role = 'model' if m['role'] == 'assistant' else 'user'
@@ -283,7 +283,7 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
 
         if gemini_key:
             try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={gemini_key}"
                 contents = []
                 for m in history:
                     role = 'model' if m['role'] == 'assistant' else 'user'
