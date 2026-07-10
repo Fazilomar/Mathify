@@ -45,37 +45,65 @@
 
     .stat-card {
       backdrop-filter: blur(20px);
-      background: rgba(30, 30, 30, 0.55);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(235, 240, 245, 0.8);
+      border: 1px solid rgba(217, 225, 236, 0.8);
       transition: all 0.3s ease;
     }
 
     .stat-card:hover {
-      border-color: rgba(0, 218, 248, 0.4);
+      border-color: rgba(0, 86, 210, 0.4);
       transform: translateY(-2px);
     }
 
+    html.dark .stat-card {
+      background: rgba(30, 30, 30, 0.55);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    html.dark .stat-card:hover {
+      border-color: rgba(0, 218, 248, 0.4);
+    }
+
     .badge-chip {
-      background: rgba(42, 42, 42, 0.8);
-      border: 1px solid rgba(0, 218, 248, 0.2);
+      background: rgba(245, 247, 250, 0.8);
+      border: 1px solid rgba(0, 86, 210, 0.2);
       transition: all 0.2s ease;
     }
 
     .badge-chip:hover {
+      border-color: #0056d2;
+      background: rgba(0, 86, 210, 0.1);
+    }
+
+    html.dark .badge-chip {
+      background: rgba(42, 42, 42, 0.8);
+      border-color: rgba(0, 218, 248, 0.2);
+    }
+
+    html.dark .badge-chip:hover {
       border-color: #00daf8;
       background: rgba(0, 218, 248, 0.1);
     }
 
     .post-card {
-      background: rgba(28, 27, 27, 0.85);
+      background: rgba(245, 247, 250, 0.85);
       backdrop-filter: blur(10px);
-      border: 1px solid #282828;
+      border: 1px solid rgba(217, 225, 236, 0.8);
       transition: all 0.2s ease;
     }
 
     .post-card:hover {
-      border-color: #00daf8;
+      border-color: #0056d2;
       transform: translateY(-1px);
+    }
+
+    html.dark .post-card {
+      background: rgba(28, 27, 27, 0.85);
+      border-color: #282828;
+    }
+
+    html.dark .post-card:hover {
+      border-color: #00daf8;
     }
   </style>
   <script src="{% static 'js/theme.js' %}?v=2.2"></script>
@@ -135,15 +163,15 @@
       <!-- Stats Row -->
       <div class="grid grid-cols-3 gap-sm mt-lg">
         <div class="stat-card rounded-xl p-md text-center">
-          <p class="font-headline-sm text-headline-sm font-bold" style="color: #00daf8;" id="stat-points">—</p>
+          <p class="font-headline-sm text-headline-sm font-bold text-primary dark:text-[#00daf8]" id="stat-points">—</p>
           <p class="font-label-caps text-label-caps text-primary-fixed-dim mt-xs">AXIOM PTS</p>
         </div>
         <div class="stat-card rounded-xl p-md text-center">
-          <p class="font-headline-sm text-headline-sm font-bold" style="color: #a9f900;" id="stat-followers">—</p>
+          <p class="font-headline-sm text-headline-sm font-bold text-[#5c9300] dark:text-[#a9f900]" id="stat-followers">—</p>
           <p class="font-label-caps text-label-caps text-outline mt-xs">FOLLOWERS</p>
         </div>
         <div class="stat-card rounded-xl p-md text-center">
-          <p class="font-headline-sm text-headline-sm font-bold" style="color: #baf2ff;" id="stat-following">—</p>
+          <p class="font-headline-sm text-headline-sm font-bold text-[#007b99] dark:text-[#baf2ff]" id="stat-following">—</p>
           <p class="font-label-caps text-label-caps text-outline mt-xs">FOLLOWING</p>
         </div>
       </div>
