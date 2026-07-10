@@ -11,6 +11,8 @@
     rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
     rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
   <title>Mathify | Feed</title>
   <style>
@@ -610,6 +612,23 @@
           const isVideo = p.media && /\.(mp4|webm|ogg)(\?|$)/i.test(p.media);
           const isImage = p.media && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(p.media);
           const isAuthor = currentUserId && (Number(p.author_id) === Number(currentUserId));
+          
+          let mathHtml = '';
+          if (p.latex_content) {
+            try {
+              if (typeof katex !== 'undefined') {
+                mathHtml = katex.renderToString(p.latex_content, {
+                  displayMode: true,
+                  throwOnError: false
+                });
+              } else {
+                mathHtml = p.latex_content;
+              }
+            } catch (err) {
+              mathHtml = p.latex_content;
+            }
+          }
+
           return `
       <div class="rounded-2xl border border-outline-variant/30 bg-surface-container-high p-md flex flex-col gap-sm hover:border-primary/40 transition-colors" data-post-id="${p.id}">
         <div class="flex items-center justify-between">
@@ -617,7 +636,7 @@
           <span class="text-[10px] text-outline">${new Date(p.created_at).toLocaleDateString()}</span>
         </div>
         <p class="font-body-md text-on-surface">${p.content || ''}</p>
-        ${p.latex_content ? `<div class="p-sm rounded bg-black/40 text-secondary-fixed font-math-display text-math-display overflow-x-auto">${p.latex_content}</div>` : ''}
+        ${p.latex_content ? `<div class="p-sm rounded bg-black/40 text-secondary-fixed overflow-x-auto">${mathHtml}</div>` : ''}
         ${p.media ? `
           <div class="mt-xs">
             ${isVideo ? `

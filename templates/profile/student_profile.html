@@ -3,6 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
   <title>Mathify | Profile</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -592,6 +594,23 @@
         postsContainer.innerHTML = posts.slice(0, 5).map(p => {
           const isVideo = p.media && /\.(mp4|webm|ogg)(\?|$)/i.test(p.media);
           const isImage = p.media && /\.(png|jpe?g|gif|webp)(\?|$)/i.test(p.media);
+          
+          let mathHtml = '';
+          if (p.latex_content) {
+            try {
+              if (typeof katex !== 'undefined') {
+                mathHtml = katex.renderToString(p.latex_content, {
+                  displayMode: true,
+                  throwOnError: false
+                });
+              } else {
+                mathHtml = p.latex_content;
+              }
+            } catch (err) {
+              mathHtml = p.latex_content;
+            }
+          }
+
           return `
       <div class="post-card rounded-2xl p-lg flex flex-col gap-xs">
         <div class="flex items-center justify-between mb-xs">
@@ -599,7 +618,7 @@
           <span class="font-label-caps text-label-caps text-outline">${new Date(p.created_at).toLocaleDateString()}</span>
         </div>
         <p class="font-body-md text-on-surface line-clamp-3">${p.content}</p>
-        ${p.latex_content ? `<div class="mt-xs p-md rounded-xl bg-surface-container-lowest border-l-2 border-secondary-fixed font-math-display text-secondary-fixed text-body-sm overflow-x-auto">${p.latex_content}</div>` : ''}
+        ${p.latex_content ? `<div class="mt-xs p-md rounded-xl bg-surface-container-lowest border-l-2 border-secondary-fixed text-secondary-fixed text-body-sm overflow-x-auto">${mathHtml}</div>` : ''}
         ${p.media ? `
           <div class="mt-xs">
             ${isVideo ? `
