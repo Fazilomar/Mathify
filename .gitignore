@@ -1,15 +1,31 @@
-.env
-venv/
-.venv/
-node_modules/
-.DS_Store
+# Python / Django
 __pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+media/
+staticfiles/
+.env
+*.env
+venv/
+env/
+ENV/
+.venv/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+frontend/dist/
+dist/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
-*.pyc
-*.log
-*.sqlite3
-migrations/
-db.sqlite3
-backend/staticfiles/
-media/
+*.swp
+*.swo

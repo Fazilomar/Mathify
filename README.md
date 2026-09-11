@@ -1,142 +1,84 @@
-# Mathify Backend — Setup Guide
+# Mathify: Academic Mathematical Social Hub & Olympiad Arena
 
-## 1. Drop these files into your project
+A full-stack mathematical collaboration and competition platform built with **Django REST Framework** (Backend) and **React + Vite** (Frontend).
 
-Place the contents of this zip inside your existing `backend/` folder so the
-structure looks like:
+---
+
+## Project Architecture
 
 ```
-backend/
-├── mathify/          ← updated settings.py, urls.py
-├── accounts/
-├── feed/
-├── social/
-├── library/
-├── studio/
-├── rankings/
-├── ai_tutor/
-├── requirements.txt
-├── .env.example
-└── manage.py         ← already exists, leave it
+stitch_mathify_social_hub/
+├── backend/                  # Django REST API
+│   ├── accounts/             # Authentication, Profiles & RBAC
+│   ├── ai_tutor/             # AI Mathematics Tutor (Gemini Integration)
+│   ├── feed/                 # Academic Social Feed, Notes & Discussions
+│   ├── library/              # Mathematical Manuscript & Paper Repository
+│   ├── mathify/              # Project Settings & WSGI Entrypoint
+│   ├── rankings/             # Competitions, Axiom Points & Leaderboards
+│   ├── social/               # Study Groups, Real-Time Rooms & Calls
+│   ├── studio/               # Interactive LaTeX Proof Studio
+│   ├── requirements.txt      # Python Dependencies
+│   └── vercel.json           # Vercel Serverless WSGI Deployment
+├── frontend/                 # React 18 + Vite SPA
+│   ├── src/                  # Components, Pages, Contexts & Hooks
+│   ├── package.json          # Node Dependencies
+│   └── vercel.json           # Vercel SPA Routing & Rewrites
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## 2. Install dependencies
+## Deploying to Vercel (Separately from Unified Monorepo)
 
+### 1. Deploy the Backend
+
+1. Go to [Vercel Dashboard](https://vercel.com/new) and import this GitHub repository (`Mathify`).
+2. In the project configuration:
+   - **Project Name**: e.g., `mathify-backend`
+   - **Root Directory**: Click **Edit** and select **`backend`**.
+   - **Framework Preset**: **Other** (Vercel automatically detects Python with `vercel.json`).
+3. Under **Environment Variables**, add:
+   - `SECRET_KEY`: A strong random string.
+   - `DEBUG`: `False`
+   - `ALLOWED_HOSTS`: `*`
+   - `DATABASE_URL`: Your PostgreSQL connection string (from Neon, Supabase, Vercel Postgres, or AWS RDS).
+   - `GEMINI_API_KEY`: Your Google Gemini API key.
+4. Click **Deploy**. Note down your deployed backend URL (e.g., `https://mathify-backend.vercel.app`).
+
+---
+
+### 2. Deploy the Frontend
+
+1. In [Vercel Dashboard](https://vercel.com/new), import the same GitHub repository again.
+2. In the project configuration:
+   - **Project Name**: e.g., `mathify-frontend`
+   - **Root Directory**: Click **Edit** and select **`frontend`**.
+   - **Framework Preset**: **Vite**.
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. Under **Environment Variables**, add:
+   - `VITE_API_URL`: The URL of your deployed backend (e.g., `https://mathify-backend.vercel.app`).
+4. Click **Deploy**.
+
+---
+
+## Local Development
+
+### Backend
 ```bash
 cd backend
+python -m venv venv
+venv\Scripts\activate      # On Windows
 pip install -r requirements.txt
-```
-
----
-
-## 3. Create your .env file
-
-```bash
-cp .env.example .env
-# then edit .env and set a real SECRET_KEY
-```
-
----
-
-## 4. Run migrations
-
-```bash
-python manage.py makemigrations accounts feed social library studio rankings ai_tutor
 python manage.py migrate
-```
-
----
-
-## 5. Create a superuser
-
-```bash
-python manage.py createsuperuser
-```
-
----
-
-## 6. Start the dev server
-
-```bash
 python manage.py runserver
 ```
 
----
-
-## API endpoints at a glance
-
-| App      | Base URL         | Key routes                                       |
-| -------- | ---------------- | ------------------------------------------------ |
-| auth     | `/api/auth/`     | `token/`, `token/refresh/`                       |
-| accounts | `/api/accounts/` | `register/`, `me/`, `me/profile/`, `users/<id>/` |
-| feed     | `/api/feed/`     | `posts/`, `posts/<id>/like/`, `follows/`         |
-| social   | `/api/social/`   | `groups/`, `groups/<id>/join/`, `messages/`      |
-| library  | `/api/library/`  | `resources/`, `resources/<id>/bookmark/`         |
-| studio   | `/api/studio/`   | `formulas/`, `creations/`                        |
-| rankings | `/api/rankings/` | `leaderboard/?period=weekly`, `competitions/`    |
-| ai_tutor | `/api/ai-tutor/` | `tutors/`, `sessions/`, `sessions/<id>/send/`    |
-| notify   | `/api/`          | `notifications/`, `notifications/<id>/read/`     |
-
----
-
-## Feed API usage (real-time via real users)
-
-Create a text post:
-
+### Frontend
 ```bash
-curl -X POST http://127.0.0.1:8000/api/feed/posts/ \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -H "Content-Type: application/json" \
-    -d '{"content":"Hello Math Axiom!","post_type":"text"}'
+cd frontend
+npm install
+npm run dev
 ```
-
-Create a formula post:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/feed/posts/ \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -H "Content-Type: application/json" \
-    -d '{"post_type":"formula","latex_content":"E=mc^2","content":"Energy mass equivalence"}'
-```
-
-Create an image post (multipart):
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/feed/posts/ \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -F "post_type=image" \
-    -F "content=Proof sketch" \
-    -F "media=@/path/to/image.jpg"
-```
-
-Like a post:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/feed/posts/<id>/like/ \
-    -H "Authorization: Bearer <ACCESS_TOKEN>"
-```
-
-Add a comment:
-
-```bash
-curl -X POST http://127.0.0.1:8000/api/feed/posts/<id>/comments/ \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    -H "Content-Type: application/json" \
-    -d '{"content":"Nice proof."}'
-```
-
-Filter posts:
-
-```bash
-curl "http://127.0.0.1:8000/api/feed/posts/?q=calculus&post_type=text"
-```
-
-## Feed validation rules
-
-- Post must include at least one of: `content`, `latex_content`, or `media`.
-- `post_type=image` accepts png/jpg/gif/webp.
-- `post_type=video` accepts mp4/webm/ogg.
-- Media is limited to 10 MB.
-- Formula posts require `latex_content`.
+Open `http://localhost:5173` to test locally.
