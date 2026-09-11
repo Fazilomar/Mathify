@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../api/client';
 
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const googleOAuthUrl = `${API_BASE}/api/accounts/oauth/google/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
+  const microsoftOAuthUrl = `${API_BASE}/api/accounts/oauth/microsoft/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -276,7 +281,7 @@ export function RegisterPage() {
         {/* OAuth Social Logins */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <a
-            href="/api/accounts/oauth/google/login/"
+            href={googleOAuthUrl}
             className="btn-secondary"
             style={{
               display: 'flex',
@@ -304,7 +309,7 @@ export function RegisterPage() {
           </a>
 
           <a
-            href="/api/accounts/oauth/microsoft/login/"
+            href={microsoftOAuthUrl}
             className="btn-secondary"
             style={{
               display: 'flex',

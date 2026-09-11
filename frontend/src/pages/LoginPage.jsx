@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../api/client';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -9,8 +10,23 @@ export function LoginPage() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('error') || '';
+  });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const err = params.get('error');
+    if (err) {
+      setError(decodeURIComponent(err));
+    }
+  }, [location.search]);
+
+  const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const googleOAuthUrl = `${API_BASE}/api/accounts/oauth/google/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
+  const microsoftOAuthUrl = `${API_BASE}/api/accounts/oauth/microsoft/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -132,7 +148,7 @@ export function LoginPage() {
         {/* OAuth Social Logins */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <a
-            href="/api/accounts/oauth/google/login/"
+            href={googleOAuthUrl}
             className="btn-secondary"
             style={{
               display: 'flex',
@@ -160,7 +176,7 @@ export function LoginPage() {
           </a>
 
           <a
-            href="/api/accounts/oauth/microsoft/login/"
+            href={microsoftOAuthUrl}
             className="btn-secondary"
             style={{
               display: 'flex',

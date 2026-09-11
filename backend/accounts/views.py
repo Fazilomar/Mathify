@@ -74,18 +74,50 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
+def get_frontend_url(request, state_frontend=None):
+    if state_frontend:
+        return state_frontend.rstrip('/')
+    req_param = request.GET.get('frontend_redirect', '').strip()
+    if req_param:
+        return req_param.rstrip('/')
+    header_origin = request.headers.get('origin') or request.headers.get('referer')
+    if header_origin:
+        try:
+            parsed = urllib.parse.urlparse(header_origin)
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
+        except Exception:
+            pass
+    configured = config('FRONTEND_URL', default='').strip().rstrip('/')
+    if configured:
+        return configured
+    return ''
+
+
 # OAuth 2.0 Identity Provider Views
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        client_id = config('GOOGLE_OAUTH_CLIENT_ID', default='')
+        frontend_url = get_frontend_url(request)
+        client_id = config('GOOGLE_OAUTH_CLIENT_ID', default='').strip()
+        client_secret = config('GOOGLE_OAUTH_CLIENT_SECRET', default='').strip()
+        
+        if not client_id or not client_secret:
+            err = urllib.parse.quote("Google OAuth credentials are not configured on the backend. Please add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in Vercel environment variables.")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
+
         base_override = config('OAUTH_REDIRECT_BASE_URL', default='').strip()
         if base_override:
             redirect_uri = base_override
         else:
             redirect_uri = request.build_absolute_uri('/api/accounts/oauth/google/callback/')
-        
+            if request.is_secure() or request.headers.get('x-forwarded-proto') == 'https':
+                redirect_uri = redirect_uri.replace('http://', 'https://')
+
+        state_payload = json.dumps({'frontend_url': frontend_url})
+        state_token = urlsafe_base64_encode(force_bytes(state_payload))
+
         params = {
             'client_id': client_id,
             'redirect_uri': redirect_uri,
@@ -93,6 +125,7 @@ class GoogleLoginView(APIView):
             'scope': 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
             'access_type': 'offline',
             'prompt': 'select_account',
+            'state': state_token,
         }
         auth_url = 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(params)
         return redirect(auth_url)
@@ -102,17 +135,32 @@ class GoogleCallbackView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        # Extract frontend URL from state
+        raw_state = request.GET.get('state', '')
+        state_frontend = ''
+        if raw_state:
+            try:
+                state_data = json.loads(force_str(urlsafe_base64_decode(raw_state)))
+                state_frontend = state_data.get('frontend_url', '')
+            except Exception:
+                pass
+        frontend_url = get_frontend_url(request, state_frontend)
+
         code = request.GET.get('code')
         if not code:
-            return redirect('/login/?error=no_code')
+            err = urllib.parse.quote('Google authorization code missing or canceled.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
             
-        client_id = config('GOOGLE_OAUTH_CLIENT_ID', default='')
-        client_secret = config('GOOGLE_OAUTH_CLIENT_SECRET', default='')
+        client_id = config('GOOGLE_OAUTH_CLIENT_ID', default='').strip()
+        client_secret = config('GOOGLE_OAUTH_CLIENT_SECRET', default='').strip()
         base_override = config('OAUTH_REDIRECT_BASE_URL', default='').strip()
         if base_override:
             redirect_uri = base_override
         else:
             redirect_uri = request.build_absolute_uri('/api/accounts/oauth/google/callback/')
+            if request.is_secure() or request.headers.get('x-forwarded-proto') == 'https':
+                redirect_uri = redirect_uri.replace('http://', 'https://')
 
         # Exchange auth code for access token
         token_url = 'https://oauth2.googleapis.com/token'
@@ -130,10 +178,14 @@ class GoogleCallbackView(APIView):
                 res_data = json.loads(response.read().decode('utf-8'))
                 access_token = res_data.get('access_token')
         except Exception as e:
-            return redirect(f'/login/?error=token_exchange_failed&msg={urllib.parse.quote(str(e))}')
+            err = urllib.parse.quote(f"Google token exchange failed: {e}")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         if not access_token:
-            return redirect('/login/?error=no_access_token')
+            err = urllib.parse.quote('Failed to obtain Google access token.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         # Retrieve profile info from Google
         profile_url = f'https://www.googleapis.com/oauth2/v3/userinfo?access_token={access_token}'
@@ -141,11 +193,15 @@ class GoogleCallbackView(APIView):
             with urllib.request.urlopen(profile_url) as response:
                 profile_data = json.loads(response.read().decode('utf-8'))
         except Exception as e:
-            return redirect(f'/login/?error=profile_fetch_failed&msg={urllib.parse.quote(str(e))}')
+            err = urllib.parse.quote(f"Failed to fetch Google user profile: {e}")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         email = profile_data.get('email')
         if not email:
-            return redirect('/login/?error=no_email')
+            err = urllib.parse.quote('Google account has no associated email address.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         first_name = profile_data.get('given_name', '')
         last_name = profile_data.get('family_name', '')
@@ -169,44 +225,45 @@ class GoogleCallbackView(APIView):
 
         # Generate SimpleJWT tokens
         refresh = RefreshToken.for_user(user)
-        from django.http import HttpResponse
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Authenticating...</title>
-        </head>
-        <body>
-            <script>
-                localStorage.setItem('mx_access', '{refresh.access_token}');
-                localStorage.setItem('mx_refresh', '{refresh}');
-                window.location.href = '/feed';
-            </script>
-        </body>
-        </html>
-        """
-        return HttpResponse(html_content)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+
+        callback_path = f"/oauth/callback?access={access}&refresh={refresh_str}"
+        target = f"{frontend_url}{callback_path}" if frontend_url else callback_path
+        return redirect(target)
 
 
 class MicrosoftLoginView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        client_id = config('MICROSOFT_OAUTH_CLIENT_ID', default='')
+        frontend_url = get_frontend_url(request)
+        client_id = config('MICROSOFT_OAUTH_CLIENT_ID', default='').strip()
+        client_secret = config('MICROSOFT_OAUTH_CLIENT_SECRET', default='').strip()
+
+        if not client_id or not client_secret:
+            err = urllib.parse.quote("Microsoft OAuth credentials are not configured on the backend. Please add MICROSOFT_OAUTH_CLIENT_ID and MICROSOFT_OAUTH_CLIENT_SECRET in Vercel environment variables.")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
+
         base_override = config('MICROSOFT_OAUTH_REDIRECT_BASE_URL', default='').strip()
         if base_override:
             redirect_uri = base_override
         else:
             redirect_uri = request.build_absolute_uri('/api/accounts/oauth/microsoft/callback/')
-            if '127.0.0.1' in redirect_uri:
-                redirect_uri = redirect_uri.replace('127.0.0.1', 'localhost')
+            if request.is_secure() or request.headers.get('x-forwarded-proto') == 'https':
+                redirect_uri = redirect_uri.replace('http://', 'https://')
         
+        state_payload = json.dumps({'frontend_url': frontend_url})
+        state_token = urlsafe_base64_encode(force_bytes(state_payload))
+
         params = {
             'client_id': client_id,
             'response_type': 'code',
             'redirect_uri': redirect_uri,
             'response_mode': 'query',
             'scope': 'https://graph.microsoft.com/User.Read',
+            'state': state_token,
         }
         auth_url = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' + urllib.parse.urlencode(params)
         return redirect(auth_url)
@@ -216,19 +273,31 @@ class MicrosoftCallbackView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        raw_state = request.GET.get('state', '')
+        state_frontend = ''
+        if raw_state:
+            try:
+                state_data = json.loads(force_str(urlsafe_base64_decode(raw_state)))
+                state_frontend = state_data.get('frontend_url', '')
+            except Exception:
+                pass
+        frontend_url = get_frontend_url(request, state_frontend)
+
         code = request.GET.get('code')
         if not code:
-            return redirect('/login/?error=no_code')
+            err = urllib.parse.quote('Microsoft authorization code missing or canceled.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
-        client_id = config('MICROSOFT_OAUTH_CLIENT_ID', default='')
-        client_secret = config('MICROSOFT_OAUTH_CLIENT_SECRET', default='')
+        client_id = config('MICROSOFT_OAUTH_CLIENT_ID', default='').strip()
+        client_secret = config('MICROSOFT_OAUTH_CLIENT_SECRET', default='').strip()
         base_override = config('MICROSOFT_OAUTH_REDIRECT_BASE_URL', default='').strip()
         if base_override:
             redirect_uri = base_override
         else:
             redirect_uri = request.build_absolute_uri('/api/accounts/oauth/microsoft/callback/')
-            if '127.0.0.1' in redirect_uri:
-                redirect_uri = redirect_uri.replace('127.0.0.1', 'localhost')
+            if request.is_secure() or request.headers.get('x-forwarded-proto') == 'https':
+                redirect_uri = redirect_uri.replace('http://', 'https://')
 
         # Exchange auth code for access token
         token_url = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
@@ -247,10 +316,14 @@ class MicrosoftCallbackView(APIView):
                 res_data = json.loads(response.read().decode('utf-8'))
                 access_token = res_data.get('access_token')
         except Exception as e:
-            return redirect(f'/login/?error=token_exchange_failed&msg={urllib.parse.quote(str(e))}')
+            err = urllib.parse.quote(f"Microsoft token exchange failed: {e}")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         if not access_token:
-            return redirect('/login/?error=no_access_token')
+            err = urllib.parse.quote('Failed to obtain Microsoft access token.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         # Retrieve profile from Microsoft Graph API
         profile_url = 'https://graph.microsoft.com/v1.0/me'
@@ -259,12 +332,16 @@ class MicrosoftCallbackView(APIView):
             with urllib.request.urlopen(req) as response:
                 profile_data = json.loads(response.read().decode('utf-8'))
         except Exception as e:
-            return redirect(f'/login/?error=profile_fetch_failed&msg={urllib.parse.quote(str(e))}')
+            err = urllib.parse.quote(f"Failed to fetch Microsoft profile: {e}")
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         # Microsoft Graph API might return mail or userPrincipalName
         email = profile_data.get('mail') or profile_data.get('userPrincipalName')
         if not email:
-            return redirect('/login/?error=no_email')
+            err = urllib.parse.quote('Microsoft account has no associated email.')
+            target = f"{frontend_url}/login?error={err}" if frontend_url else f"/login?error={err}"
+            return redirect(target)
 
         first_name = profile_data.get('givenName', '')
         last_name = profile_data.get('surname', '')
@@ -294,23 +371,12 @@ class MicrosoftCallbackView(APIView):
 
         # Generate SimpleJWT tokens
         refresh = RefreshToken.for_user(user)
-        from django.http import HttpResponse
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Authenticating...</title>
-        </head>
-        <body>
-            <script>
-                localStorage.setItem('mx_access', '{refresh.access_token}');
-                localStorage.setItem('mx_refresh', '{refresh}');
-                window.location.href = '/feed';
-            </script>
-        </body>
-        </html>
-        """
-        return HttpResponse(html_content)
+        access = str(refresh.access_token)
+        refresh_str = str(refresh)
+
+        callback_path = f"/oauth/callback?access={access}&refresh={refresh_str}"
+        target = f"{frontend_url}{callback_path}" if frontend_url else callback_path
+        return redirect(target)
 
 
 # Password Reset Views

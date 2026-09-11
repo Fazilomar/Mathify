@@ -1,5 +1,5 @@
 // Centralized API client with JWT automatic refresh and error handling
-const API_BASE = import.meta.env.VITE_API_URL || '';
+export const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://mathify-backend-one.vercel.app' : '');
 
 export const API = {
   getAccess: () => localStorage.getItem('mx_access'),

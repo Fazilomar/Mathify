@@ -15,6 +15,7 @@ import GroupsPage from './pages/GroupsPage';
 import CompetitionsPage from './pages/CompetitionsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 
 export function App() {
   return (
@@ -35,6 +36,7 @@ export function App() {
             <Route path="/groups" element={<GroupsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
