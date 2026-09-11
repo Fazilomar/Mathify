@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+IS_VERCEL = 'VERCEL' in os.environ or config('VERCEL', default=False, cast=bool)
 
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
 
@@ -71,10 +73,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mathify.wsgi.application'
 
-USE_POSTGRES = config('USE_POSTGRES', default=False, cast=bool)
 DATABASE_URL = config('DATABASE_URL', default=None)
+USE_POSTGRES = config('USE_POSTGRES', default=bool(DATABASE_URL), cast=bool)
 
-if USE_POSTGRES and DATABASE_URL:
+if DATABASE_URL:
     try:
         import dj_database_url
         DATABASES = {
@@ -86,17 +88,21 @@ if USE_POSTGRES and DATABASE_URL:
         }
     except Exception as e:
         print(f"[Warning] Failed to parse DATABASE_URL ({e}), falling back to SQLite.")
+        sqlite_file = config('SQLITE_DB_NAME', default='db.sqlite3')
+        sqlite_path = Path('/tmp') / sqlite_file if IS_VERCEL else BASE_DIR / sqlite_file
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / config('SQLITE_DB_NAME', default='db.sqlite3'),
+                'NAME': sqlite_path,
             }
         }
 else:
+    sqlite_file = config('SQLITE_DB_NAME', default='db.sqlite3')
+    sqlite_path = Path('/tmp') / sqlite_file if IS_VERCEL else BASE_DIR / sqlite_file
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / config('SQLITE_DB_NAME', default='db.sqlite3'),
+            'NAME': sqlite_path,
         }
     }
 
@@ -143,7 +149,7 @@ STATICFILES_DIRS = [
 ]
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
