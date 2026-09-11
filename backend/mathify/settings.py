@@ -82,7 +82,7 @@ if DATABASE_URL:
         DATABASES = {
             'default': dj_database_url.parse(
                 DATABASE_URL,
-                conn_max_age=config('DB_CONN_MAX_AGE', default=600, cast=int),
+                conn_max_age=config('DB_CONN_MAX_AGE', default=(0 if IS_VERCEL else 600), cast=int),
                 ssl_require=config('DB_SSL_REQUIRE', default=True, cast=bool)
             )
         }
