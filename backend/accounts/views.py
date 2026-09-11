@@ -206,6 +206,14 @@ class GoogleCallbackView(APIView):
         first_name = profile_data.get('given_name', '')
         last_name = profile_data.get('family_name', '')
 
+        # Proactively ensure the role column exists on accounts_profile
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("ALTER TABLE accounts_profile ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'student';")
+        except Exception:
+            pass
+
         # Get or create CustomUser
         user = CustomUser.objects.filter(email=email).first()
         if not user:
@@ -351,6 +359,14 @@ class MicrosoftCallbackView(APIView):
                 parts = display_name.split(' ', 1)
                 first_name = parts[0]
                 last_name = parts[1] if len(parts) > 1 else ''
+
+        # Proactively ensure the role column exists on accounts_profile
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("ALTER TABLE accounts_profile ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'student';")
+        except Exception:
+            pass
 
         # Get or create CustomUser
         user = CustomUser.objects.filter(email=email).first()
