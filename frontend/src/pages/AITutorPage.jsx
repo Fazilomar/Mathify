@@ -197,9 +197,9 @@ export function AITutorPage() {
   };
 
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - var(--nav-height) - 76px)', minHeight: '560px' }}>
+    <div className="ai-tutor-shell" style={{ width: '100%', height: 'calc(100vh - var(--nav-height) - 76px)', minHeight: '560px' }}>
       <div
-        className="card"
+        className="ai-tutor-layout card"
         style={{
           display: 'flex',
           height: '100%',
@@ -211,6 +211,7 @@ export function AITutorPage() {
       >
         {/* Sessions Sidebar */}
         <aside
+          className="ai-tutor-sidebar"
           style={{
             width: '280px',
             borderRight: '1px solid var(--border)',
@@ -320,9 +321,10 @@ export function AITutorPage() {
         </aside>
 
         {/* Main Chat Area */}
-        <section style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#18181D' }}>
+        <section className="ai-tutor-chat" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#18181D' }}>
           {/* Chat Header */}
           <header
+            className="ai-tutor-chat-header"
             style={{
               padding: '12px 20px',
               borderBottom: '1px solid var(--border)',
@@ -365,7 +367,7 @@ export function AITutorPage() {
           </header>
 
           {/* Messages Stream */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div className="ai-tutor-messages" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {messages.length === 0 ? (
               <div style={{ margin: 'auto', maxWidth: '640px', textAlign: 'center', width: '100%' }}>
                 <div
@@ -392,7 +394,7 @@ export function AITutorPage() {
                 </p>
 
                 {/* Responsive 2-column Starter Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px', textAlign: 'left' }}>
+                <div className="ai-tutor-prompts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px', textAlign: 'left' }}>
                   {starterPrompts.map((p) => (
                     <button
                       key={p.title}
@@ -438,6 +440,7 @@ export function AITutorPage() {
                     }}
                   >
                     <div
+                      className="ai-tutor-message-bubble"
                       style={{
                         maxWidth: '82%',
                         padding: '14px 18px',
@@ -492,7 +495,7 @@ export function AITutorPage() {
           </div>
 
           {/* Chat Input & Toolbar */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: '#16161B' }}>
+          <div className="ai-tutor-composer" style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: '#16161B' }}>
             {/* Quick Math Symbols */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
               <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>
@@ -516,6 +519,7 @@ export function AITutorPage() {
                 e.preventDefault();
                 handleSendMessage();
               }}
+              className="ai-tutor-input-row"
               style={{ display: 'flex', gap: '10px' }}
             >
               <input

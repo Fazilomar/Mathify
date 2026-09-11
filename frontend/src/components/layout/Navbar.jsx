@@ -59,6 +59,16 @@ export function Navbar() {
     setShowMobileDrawer(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!showMobileDrawer) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showMobileDrawer]);
+
   const handleToggleNotifications = async () => {
     const nextState = !showNotifMenu;
     setShowNotifMenu(nextState);
@@ -95,7 +105,7 @@ export function Navbar() {
 
   return (
     <header
-      className="academic-nav"
+      className={`academic-nav${showMobileDrawer ? ' mobile-drawer-open' : ''}`}
       style={{
         position: 'fixed',
         top: 0,
@@ -481,11 +491,35 @@ export function Navbar() {
         </button>
       </div>
 
+<<<<<<< HEAD
       {/* Mobile Full Slide-In Drawer rendered outside header to avoid backdrop-filter stacking context trap */}
       {showMobileDrawer &&
         createPortal(
+=======
+      {/* Mobile Full Slide-In Drawer */}
+      {showMobileDrawer && (
+        <div
+          className="mobile-drawer-overlay"
+          style={{
+            position: 'fixed',
+            top: 'var(--nav-height)',
+            right: 0,
+            bottom: 'calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))',
+            left: 0,
+            zIndex: 1001,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease',
+          }}
+          onClick={() => setShowMobileDrawer(false)}
+        >
+>>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
           <div
+            className="mobile-drawer-panel"
             style={{
+<<<<<<< HEAD
               position: 'fixed',
               inset: 0,
               zIndex: 99999,
@@ -495,6 +529,20 @@ export function Navbar() {
               display: 'flex',
               justifyContent: 'flex-end',
               animation: 'drawerFadeIn 0.2s ease',
+=======
+              width: '290px',
+              maxWidth: '85vw',
+              height: '100%',
+              maxHeight: '100%',
+              boxSizing: 'border-box',
+              backgroundColor: '#16161B',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
+              boxShadow: '-10px 0 30px rgba(0,0,0,0.8)',
+              overflowY: 'auto',
+>>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
             }}
             onClick={() => setShowMobileDrawer(false)}
           >
