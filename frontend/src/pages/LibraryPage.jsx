@@ -407,7 +407,9 @@ export function LibraryPage() {
             style={{
               width: '100%',
               maxWidth: '520px',
-              padding: '28px 30px',
+              maxHeight: 'min(90vh, 90dvh)',
+              overflowY: 'auto',
+              padding: '24px 20px',
               backgroundColor: '#16161B',
               border: '1px solid var(--border)',
             }}

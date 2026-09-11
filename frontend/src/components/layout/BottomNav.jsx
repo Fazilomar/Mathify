@@ -4,18 +4,21 @@ import { NavLink, useLocation } from 'react-router-dom';
 export function BottomNav() {
   const location = useLocation();
 
-  // Exactly 4 primary ergonomic destinations for mobile screens
   const tabs = [
     { label: 'Feed', path: '/feed', icon: 'dynamic_feed' },
-    { label: 'Proof Studio', path: '/studio', icon: 'history_edu' },
+    { label: 'Contests', path: '/competitions', icon: 'emoji_events' },
+    { label: 'Studio', path: '/studio', icon: 'history_edu' },
     { label: 'AI Tutor', path: '/tutor', icon: 'smart_toy' },
-    { label: 'Profile', path: '/profile', icon: 'person' },
   ];
 
   // Don't show bottom nav on login/register pages
   if (['/login', '/register'].includes(location.pathname)) {
     return null;
   }
+
+  const handleOpenMore = () => {
+    window.dispatchEvent(new CustomEvent('nav:open-drawer'));
+  };
 
   return (
     <nav
@@ -53,13 +56,13 @@ export function BottomNav() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '3px',
-              padding: '8px 16px',
+              padding: '6px 4px',
               textDecoration: 'none',
               color: isActive ? 'var(--primary)' : 'var(--text-muted)',
               transition: 'color 0.15s ease',
               position: 'relative',
               flex: 1,
-              maxWidth: '90px',
+              maxWidth: '75px',
             }}
           >
             <span
@@ -73,7 +76,7 @@ export function BottomNav() {
             </span>
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '10.5px',
                 fontWeight: isActive ? 600 : 500,
                 letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap',
@@ -96,6 +99,41 @@ export function BottomNav() {
           </NavLink>
         );
       })}
+
+      {/* 5th Tab: Menu (opens comprehensive drawer with Leaderboard, Library, Groups, Profile) */}
+      <button
+        onClick={handleOpenMore}
+        aria-label="Open full platform menu"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '3px',
+          padding: '6px 4px',
+          background: 'none',
+          border: 'none',
+          color: 'var(--text-muted)',
+          cursor: 'pointer',
+          flex: 1,
+          maxWidth: '75px',
+          position: 'relative',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+          menu
+        </span>
+        <span
+          style={{
+            fontSize: '10.5px',
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          More
+        </span>
+      </button>
     </nav>
   );
 }

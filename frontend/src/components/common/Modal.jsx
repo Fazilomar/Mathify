@@ -21,39 +21,20 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }) 
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-      }}
+      className="app-modal-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
       <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth,
-          backgroundColor: '#18181D',
-          padding: '24px',
-          borderRadius: '16px',
-          border: '1px solid var(--border)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(229, 169, 60, 0.1)',
-          animation: 'fadeInScale 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
+        className="app-modal-card card"
+        style={{ maxWidth }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="app-modal-header">
           <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>{title}</h3>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             style={{
               background: 'transparent',
               border: 'none',
@@ -62,12 +43,15 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }) 
               display: 'flex',
               padding: '6px',
               borderRadius: '8px',
+              transition: 'color 0.15s ease, background-color 0.15s ease',
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
           </button>
         </div>
-        <div>{children}</div>
+        <div className="app-modal-body">
+          {children}
+        </div>
       </div>
     </div>
   );
