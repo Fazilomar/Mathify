@@ -71,7 +71,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mathify.wsgi.application'
 
-# Dynamic Database Configuration: SQLite for local dev or PostgreSQL via DATABASE_URL
 USE_POSTGRES = config('USE_POSTGRES', default=False, cast=bool)
 DATABASE_URL = config('DATABASE_URL', default=None)
 
@@ -203,4 +202,4 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@mathify.local
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='').strip()
 GEMINI_DEFAULT_MODEL = config('GEMINI_DEFAULT_MODEL', default='gemini-2.5-flash').strip()
 AI_TIMEOUT_SECONDS = config('AI_TIMEOUT_SECONDS', default=20, cast=int)
-
+

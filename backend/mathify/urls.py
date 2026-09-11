@@ -47,10 +47,46 @@ urlpatterns = [
 
 from django.views.static import serve
 
-# Route Vite compiled assets and static files from frontend/dist
+
+def spa_or_api_root(request, *args, **kwargs):
+    """
+    If the compiled frontend bundle (index.html) exists, render the React SPA.
+    If deployed as a standalone backend (e.g. on Vercel), return a JSON status
+    confirming the backend API is online and healthy.
+    """
+    dist_dir = getattr(settings, 'FRONTEND_DIST', None)
+    if dist_dir and (dist_dir / 'index.html').exists():
+        from django.shortcuts import render
+        return render(request, 'index.html')
+    return JsonResponse({
+        'name': 'Mathify Backend API',
+        'status': 'online',
+        'version': '1.0.0',
+        'message': 'Mathify Backend API is running smoothly. Connect your frontend client or explore the endpoints below.',
+        'endpoints': {
+            'auth_token': '/api/auth/token/',
+            'auth_refresh': '/api/auth/token/refresh/',
+            'me': '/api/accounts/me/',
+            'feed': '/api/feed/posts/',
+            'competitions': '/api/rankings/competitions/',
+            'leaderboard': '/api/rankings/leaderboard/',
+            'library': '/api/library/resources/',
+            'studio': '/api/studio/creations/',
+            'ai_tutor': '/api/ai-tutor/chat/',
+            'study_rooms': '/api/social/groups/',
+            'admin': '/admin/',
+        }
+    })
+
+
+# Route Vite compiled assets if dist exists
+if getattr(settings, 'FRONTEND_DIST', None) and settings.FRONTEND_DIST.exists():
+    urlpatterns += [
+        re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': settings.FRONTEND_DIST / 'assets'}),
+        re_path(r'^(?P<path>[^/]+\.(?:svg|png|ico|json|webmanifest))$', serve, {'document_root': settings.FRONTEND_DIST}),
+    ]
+
 urlpatterns += [
-    re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': settings.FRONTEND_DIST / 'assets'}),
-    re_path(r'^(?P<path>[^/]+\.(?:svg|png|ico|json|webmanifest))$', serve, {'document_root': settings.FRONTEND_DIST}),
-    re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', TemplateView.as_view(template_name='index.html'), name='spa_catchall'),
+    re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', spa_or_api_root, name='spa_catchall'),
 ]
 
