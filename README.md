@@ -1,4 +1,4 @@
-# Mathify: Academic Mathematical Social Hub & Olympiad Arena
+# Mathify: Community for STEM students most especially Mathematics students.
 
 A full-stack mathematical collaboration and competition platform built with **Django REST Framework** (Backend) and **React + Vite** (Frontend).
 
@@ -8,21 +8,21 @@ A full-stack mathematical collaboration and competition platform built with **Dj
 
 ```
 stitch_mathify_social_hub/
-├── backend/                  # Django REST API
-│   ├── accounts/             # Authentication, Profiles & RBAC
-│   ├── ai_tutor/             # AI Mathematics Tutor (Gemini Integration)
-│   ├── feed/                 # Academic Social Feed, Notes & Discussions
-│   ├── library/              # Mathematical Manuscript & Paper Repository
-│   ├── mathify/              # Project Settings & WSGI Entrypoint
-│   ├── rankings/             # Competitions, Axiom Points & Leaderboards
-│   ├── social/               # Study Groups, Real-Time Rooms & Calls
-│   ├── studio/               # Interactive LaTeX Proof Studio
-│   ├── requirements.txt      # Python Dependencies
-│   └── vercel.json           # Vercel Serverless WSGI Deployment
-├── frontend/                 # React 18 + Vite SPA
-│   ├── src/                  # Components, Pages, Contexts & Hooks
-│   ├── package.json          # Node Dependencies
-│   └── vercel.json           # Vercel SPA Routing & Rewrites
+├── backend/                  
+│   ├── accounts/             
+│   ├── ai_tutor/             
+│   ├── feed/                 
+│   ├── library/              
+│   ├── mathify/              
+│   ├── rankings/             
+│   ├── social/               
+│   ├── studio/               
+│   ├── requirements.txt      
+│   └── vercel.json           
+├── frontend/                 
+│   ├── src/                  
+│   ├── package.json          
+│   └── vercel.json          
 ├── .gitignore
 └── README.md
 ```
