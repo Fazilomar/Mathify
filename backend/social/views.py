@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Group, GroupMembership, Message, Call
+from .models import Group, GroupMembership, Message, Call, CallSignal
 from .serializers import GroupSerializer, GroupMembershipSerializer, MessageSerializer, CallSerializer
 
 
@@ -10,7 +10,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     serializer_class = GroupSerializer
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'messages', 'current_call']:
+        if self.action in ['list', 'retrieve', 'messages', 'current_call', 'call_signals']:
             return [permissions.IsAuthenticatedOrReadOnly()]
         return [permissions.IsAuthenticated()]
 
@@ -123,6 +123,87 @@ class GroupViewSet(viewsets.ModelViewSet):
                 call.save()
             return Response(CallSerializer(call).data)
         return Response({'status': 'none'})
+
+    @action(detail=True, methods=['get', 'post'])
+    def call_signals(self, request, pk=None):
+        import datetime
+        from django.utils import timezone
+        from django.db.models import Q
+        group = self.get_object()
+
+        # Proactively ensure CallSignal table exists
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS social_callsignal (
+                        id BIGSERIAL PRIMARY KEY,
+                        signal_type VARCHAR(50) NOT NULL,
+                        payload JSONB DEFAULT '{}'::jsonb,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        call_id BIGINT,
+                        group_id BIGINT NOT NULL,
+                        recipient_id BIGINT,
+                        sender_id BIGINT NOT NULL
+                    );
+                """)
+        except Exception:
+            pass
+
+        if request.method == 'POST':
+            if not request.user.is_authenticated:
+                return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+            recipient_username = request.data.get('recipient')
+            signal_type = request.data.get('type', '')
+            payload = request.data.get('payload', {})
+
+            recipient = None
+            if recipient_username:
+                from accounts.models import CustomUser
+                recipient = CustomUser.objects.filter(username=recipient_username).first()
+
+            call = group.calls.filter(status=Call.STATUS_ACTIVE).first()
+            try:
+                sig = CallSignal.objects.create(
+                    call=call,
+                    group=group,
+                    sender=request.user,
+                    recipient=recipient,
+                    signal_type=signal_type,
+                    payload=payload
+                )
+                # Cleanup older signals (> 3 mins)
+                cutoff = timezone.now() - datetime.timedelta(minutes=3)
+                CallSignal.objects.filter(group=group, created_at__lt=cutoff).delete()
+                return Response({'status': 'ok', 'id': sig.id}, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # GET signals
+        if not request.user.is_authenticated:
+            return Response([])
+
+        since_id = request.query_params.get('since_id', 0)
+        try:
+            qs = CallSignal.objects.filter(group=group).filter(
+                Q(recipient=request.user) | Q(recipient__isnull=True)
+            ).exclude(sender=request.user)
+
+            if since_id and str(since_id).isdigit() and int(since_id) > 0:
+                qs = qs.filter(id__gt=int(since_id))
+
+            signals_data = [{
+                'id': s.id,
+                'sender': s.sender.username,
+                'recipient': s.recipient.username if s.recipient else None,
+                'type': s.signal_type,
+                'payload': s.payload,
+                'created_at': s.created_at.isoformat()
+            } for s in qs[:60]]
+            return Response(signals_data)
+        except Exception:
+            return Response([])
+
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer

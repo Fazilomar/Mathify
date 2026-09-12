@@ -113,3 +113,28 @@ class Call(models.Model):
 
     def __str__(self):
         return f"Call by {self.initiator.username} [{self.status}]"
+
+
+class CallSignal(models.Model):
+    call = models.ForeignKey(
+        Call, on_delete=models.CASCADE, related_name='signals', null=True, blank=True
+    )
+    group = models.ForeignKey(
+        Group, on_delete=models.CASCADE, related_name='signals'
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_signals'
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_signals',
+        null=True, blank=True
+    )
+    signal_type = models.CharField(max_length=50)  # 'offer', 'answer', 'candidate'
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Signal {self.signal_type} from {self.sender.username} to {self.recipient.username if self.recipient else 'All'}"
