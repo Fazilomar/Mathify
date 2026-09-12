@@ -281,10 +281,10 @@ export function CompetitionsPage() {
           prev.map((c) =>
             c.id === activeCompetition.id
               ? {
-                  ...c,
-                  questions: [...(c.questions || []), addedQ],
-                  questions_count: (c.questions_count || 0) + 1,
-                }
+                ...c,
+                questions: [...(c.questions || []), addedQ],
+                questions_count: (c.questions_count || 0) + 1,
+              }
               : c
           )
         );
@@ -696,25 +696,33 @@ export function CompetitionsPage() {
                 emoji_events
               </span>
               <h3 style={{ fontSize: '16px', color: 'var(--text)', margin: '0 0 6px' }}>
-                No competition selected
+                {competitions.length === 0 ? 'No competitions available' : 'No competition selected'}
               </h3>
-              <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '360px', margin: '0 auto 18px' }}>
-                Select an active competition on the left to solve problems, or host a new mathematical competition sprint.
+              <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 18px', lineHeight: 1.5 }}>
+                {competitions.length === 0
+                  ? isHost
+                    ? 'There are currently no active competition sprints. As an organizer/host, you can launch a new mathematical sprint.'
+                    : 'There are currently no active competition sprints scheduled. When an organizer launches a competition, it will appear on the left for you to enter and earn Points and learn alongside.'
+                  : isHost
+                    ? 'Select an active competition on the left to view problems, or host a new mathematical competition sprint.'
+                    : 'Select an active competition on the left to enter the arena, solve problem sets, and earn Axiom Points.'}
               </p>
-              <button
-                onClick={() => setShowHostModal(true)}
-                className="btn-primary"
-                style={{ padding: '9px 20px', fontSize: '13px' }}
-              >
-                Host Competition
-              </button>
+              {isHost && (
+                <button
+                  onClick={() => setShowHostModal(true)}
+                  className="btn-primary"
+                  style={{ padding: '9px 20px', fontSize: '13px' }}
+                >
+                  Host Competition
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* Host Competition Modal */}
-      {showHostModal && (
+      {isHost && showHostModal && (
         <div
           style={{
             position: 'fixed',

@@ -15,6 +15,7 @@ export function FeedPage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewTab, setPreviewTab] = useState('write');
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Active comments drawer
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -99,7 +100,14 @@ export function FeedPage() {
       const res = await API.post('/api/feed/posts/', formData);
       if (res.ok) {
         const newPost = await res.json();
-        setPosts((prev) => [newPost, ...prev]);
+        const hydratedPost = {
+          ...newPost,
+          author: newPost.author || user?.username,
+          author_username: newPost.author_username || (typeof newPost.author === 'string' ? newPost.author : newPost.author?.username) || user?.username,
+          author_id: newPost.author_id || user?.id,
+          author_avatar: newPost.author_avatar || user?.avatar || null,
+        };
+        setPosts((prev) => [hydratedPost, ...prev]);
         setContent('');
         setLatex('');
         setSelectedFile(null);
@@ -194,11 +202,33 @@ export function FeedPage() {
     }
   };
 
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm('Are you sure you want to delete this publication? This action cannot be undone.')) {
+      return;
+    }
+    setDeletingId(postId);
+    try {
+      const res = await API.delete(`/api/feed/posts/${postId}/`);
+      if (res.ok || res.status === 204) {
+        setPosts((prev) => prev.filter((p) => p.id !== postId));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(`Unable to delete publication: ${errData.detail || 'Permission denied'}`);
+      }
+    } catch (err) {
+      console.error('Failed to delete post:', err);
+      alert('Network error attempting to delete publication.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const filteredPosts = posts.filter((p) => {
     if (searchTerm) {
+      const authorName = p.author_username || (typeof p.author === 'string' ? p.author : p.author?.username) || '';
       const matchContent = p.content?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchLatex = p.latex_content?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchAuthor = p.author_username?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchAuthor = authorName.toLowerCase().includes(searchTerm.toLowerCase());
       return matchContent || matchLatex || matchAuthor;
     }
     return true;
@@ -437,48 +467,100 @@ export function FeedPage() {
               <span>{newPostsAvailable} new preprint{newPostsAvailable > 1 ? 's' : ''} published &bull; Click to update feed</span>
             </button>
           )}
-          {filteredPosts.map((post) => (
-            <article key={post.id} className="glass-card" style={{ padding: '20px' }}>
-              {/* Post Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--surface-input)',
-                    border: '1px solid var(--border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--primary)',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {post.author_avatar ? (
-                    <img src={post.author_avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    post.author_username?.[0]?.toUpperCase() || 'M'
+          {filteredPosts.map((post) => {
+            const authorDisplay = post.author_username || (typeof post.author === 'string' ? post.author : post.author?.username) || 'Mathematician';
+            const currentUserId = API.getCurrentUserId() || user?.id;
+            const isAuthor = Boolean(
+              currentUserId && (
+                Number(post.author_id) === Number(currentUserId) ||
+                (user?.username && (post.author === user.username || post.author_username === user.username))
+              )
+            );
+
+            return (
+              <article key={post.id} className="glass-card" style={{ padding: '20px' }}>
+                {/* Post Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--surface-input)',
+                        border: '1px solid var(--border)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {post.author_avatar ? (
+                        <img src={post.author_avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        authorDisplay?.[0]?.toUpperCase() || 'M'
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+                        {authorDisplay}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>
+                        {post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Just now'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delete Button for Post Author */}
+                  {isAuthor && (
+                    <button
+                      onClick={() => handleDeletePost(post.id)}
+                      disabled={deletingId === post.id}
+                      title="Delete publication"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                        color: 'var(--text-subtle)',
+                        cursor: deletingId === post.id ? 'not-allowed' : 'pointer',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (deletingId !== post.id) {
+                          e.currentTarget.style.color = '#EF4444';
+                          e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-subtle)';
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderColor = 'transparent';
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>
+                        {deletingId === post.id ? 'hourglass_empty' : 'delete'}
+                      </span>
+                      <span>{deletingId === post.id ? 'Deleting...' : 'Delete'}</span>
+                    </button>
                   )}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
-                    {post.author_username || 'Mathematician'}
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>
-                    {post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Just now'}
-                  </div>
-                </div>
-              </div>
 
-              {/* Post Body */}
-              {post.content && (
-                <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
-                  {post.content}
-                </p>
-              )}
+                {/* Post Body */}
+                {post.content && (
+                  <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
+                    {post.content}
+                  </p>
+                )}
 
               {/* LaTeX Formula */}
               {post.latex_content && (
@@ -617,7 +699,8 @@ export function FeedPage() {
                 </div>
               )}
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
