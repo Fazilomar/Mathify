@@ -375,6 +375,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                   .then((offer) => pc.setLocalDescription(offer))
                   .then(() => sendSignal(sender, 'offer', pc.localDescription))
                   .catch((e) => console.warn('Offer error:', e));
+              }
             } else if (sig.type === 'leave') {
               closeAndRemovePeer(sender);
               setParticipants((prev) => prev.filter((p) => p.name !== sender));
