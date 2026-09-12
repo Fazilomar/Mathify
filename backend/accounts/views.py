@@ -368,7 +368,7 @@ class MicrosoftCallbackView(APIView):
         except Exception:
             pass
 
-        # Get or create CustomUser
+        # create CustomUser
         user = CustomUser.objects.filter(email=email).first()
         if not user:
             username_base = email.split('@')[0]

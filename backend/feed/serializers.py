@@ -20,6 +20,8 @@ class CommentSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField(read_only=True)
     author_id = serializers.ReadOnlyField(source='author.id')
+    author_username = serializers.ReadOnlyField(source='author.username')
+    author_avatar = serializers.SerializerMethodField()
     likes_count = serializers.ReadOnlyField()
     comments_count = serializers.ReadOnlyField()
     is_liked = serializers.SerializerMethodField()
@@ -33,11 +35,20 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            'id', 'author', 'author_id', 'content', 'latex_content', 'media',
+            'id', 'author', 'author_id', 'author_username', 'author_avatar',
+            'content', 'latex_content', 'media',
             'post_type', 'likes_count', 'comments_count', 'is_liked',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'author', 'author_id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'author', 'author_id', 'author_username', 'author_avatar', 'created_at', 'updated_at']
+
+    def get_author_avatar(self, obj):
+        try:
+            if hasattr(obj.author, 'profile') and obj.author.profile.avatar:
+                return obj.author.profile.avatar.url
+        except Exception:
+            pass
+        return None
 
     def get_is_liked(self, obj):
         if hasattr(obj, '_is_liked'):
