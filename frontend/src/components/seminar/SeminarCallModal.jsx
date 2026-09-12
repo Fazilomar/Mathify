@@ -379,6 +379,10 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
             } else if (sig.type === 'leave') {
               closeAndRemovePeer(sender);
               setParticipants((prev) => prev.filter((p) => p.name !== sender));
+            } else if (sig.type === 'end_meeting') {
+              cleanupTracksAndConnections();
+              onClose();
+              return;
             }
           }
         }
@@ -515,19 +519,28 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
     setIsPreJoin(false);
   };
 
-  const handleLeaveCall = () => {
-    sendSignal(null, 'leave', { username: user?.username }).catch(() => {});
-    if (meeting?.id) {
-      API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => {});
-    } else if (group?.id) {
-      API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => {});
+  const [isEndingMeeting, setIsEndingMeeting] = useState(false);
+
+  const handleLeaveCall = async () => {
+    if (isEndingMeeting) return;
+    setIsEndingMeeting(true);
+    try {
+      await sendSignal(null, 'leave', { username: user?.username }).catch(() => {});
+      if (meeting?.id) {
+        await API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => {});
+      } else if (group?.id) {
+        await API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => {});
+      }
+    } finally {
+      cleanupTracksAndConnections();
+      onClose();
+      setIsEndingMeeting(false);
     }
-    cleanupTracksAndConnections();
-    onClose();
   };
 
-
   const handleEndMeetingForAll = async () => {
+    if (isEndingMeeting) return;
+    setIsEndingMeeting(true);
     try {
       await sendSignal(null, 'end_meeting', {}).catch(() => {});
       if (meeting?.id) {
@@ -537,9 +550,11 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
       }
     } catch (err) {
       console.warn('Error ending meeting:', err);
+    } finally {
+      cleanupTracksAndConnections();
+      onClose();
+      setIsEndingMeeting(false);
     }
-    cleanupTracksAndConnections();
-    onClose();
   };
 
 
@@ -1390,6 +1405,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
+                  disabled={isEndingMeeting}
                   onClick={handleLeaveCall}
                   style={{
                     width: '100%',
@@ -1400,7 +1416,8 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                     color: '#FFF',
                     fontWeight: 700,
                     fontSize: '14px',
-                    cursor: 'pointer',
+                    cursor: isEndingMeeting ? 'not-allowed' : 'pointer',
+                    opacity: isEndingMeeting ? 0.6 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1409,11 +1426,12 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
-                  <span>End Meeting for Myself</span>
+                  <span>{isEndingMeeting ? 'Leaving...' : 'End Meeting for Myself'}</span>
                 </button>
 
                 <button
                   type="button"
+                  disabled={isEndingMeeting}
                   onClick={handleEndMeetingForAll}
                   style={{
                     width: '100%',
@@ -1424,7 +1442,8 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                     color: '#F87171',
                     fontWeight: 600,
                     fontSize: '13px',
-                    cursor: 'pointer',
+                    cursor: isEndingMeeting ? 'not-allowed' : 'pointer',
+                    opacity: isEndingMeeting ? 0.6 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1432,7 +1451,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>power_settings_new</span>
-                  <span>End Meeting for Everyone</span>
+                  <span>{isEndingMeeting ? 'Ending...' : 'End Meeting for Everyone'}</span>
                 </button>
 
                 <button

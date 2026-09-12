@@ -6,6 +6,55 @@ from .models import Group, GroupMembership, Message, Call, CallSignal
 from .serializers import GroupSerializer, GroupMembershipSerializer, MessageSerializer, CallSerializer
 
 
+def _sync_call_ended(call, user=None):
+    from django.utils import timezone
+    from django.db.models import Q
+    if not call:
+        return
+    call.status = Call.STATUS_ENDED
+    if not call.ended_at:
+        call.ended_at = timezone.now()
+    call.save(update_fields=['status', 'ended_at'])
+
+    if call.group:
+        group = call.group
+        # Clear active_call on group if it pointed to this call
+        if getattr(group, 'active_call_id', None) == call.id:
+            group.active_call = None
+            group.save(update_fields=['active_call'])
+
+        initiator_name = (
+            call.initiator.username
+            if getattr(call, 'initiator', None)
+            else (getattr(user, 'username', None) or 'host')
+        )
+        ended_content = f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{initiator_name}:ended:"
+
+        # Find any existing [MEETING] messages for this call ID or meeting_code
+        prefix = f"[MEETING]:{call.id}:"
+        code_sub = f":{call.meeting_code}:"
+        existing_msgs = list(group.messages.filter(
+            Q(content__startswith=prefix) | Q(content__contains=code_sub)
+        ).order_by('id'))
+
+        if existing_msgs:
+            # Update the latest message to ended
+            last_msg = existing_msgs[-1]
+            if last_msg.content != ended_content:
+                last_msg.content = ended_content
+                last_msg.save(update_fields=['content'])
+            # Delete any extra duplicate messages created previously for this same meeting
+            if len(existing_msgs) > 1:
+                duplicate_ids = [m.id for m in existing_msgs[:-1]]
+                group.messages.filter(id__in=duplicate_ids).delete()
+        else:
+            # Create exactly one ended card
+            group.messages.create(
+                sender=user if (user and getattr(user, 'is_authenticated', False)) else (call.initiator or None),
+                content=ended_content
+            )
+
+
 class GroupViewSet(viewsets.ModelViewSet):
     serializer_class = GroupSerializer
 
@@ -81,6 +130,23 @@ class GroupViewSet(viewsets.ModelViewSet):
         since_id = request.query_params.get('since_id')
         if since_id and since_id.isdigit():
             qs = qs.filter(id__gt=int(since_id))
+        else:
+            # Self-healing cleanup of any legacy duplicate [MEETING] messages
+            meeting_msgs = list(group.messages.filter(content__startswith='[MEETING]:').order_by('id'))
+            seen_codes = {}
+            to_delete_ids = []
+            for m in meeting_msgs:
+                parts = m.content.split(':')
+                code = parts[2] if len(parts) > 2 else None
+                if code:
+                    if code in seen_codes:
+                        to_delete_ids.append(seen_codes[code].id)
+                        seen_codes[code] = m
+                    else:
+                        seen_codes[code] = m
+            if to_delete_ids:
+                group.messages.filter(id__in=to_delete_ids).delete()
+                qs = group.messages.select_related('sender').order_by('created_at')
         return Response(MessageSerializer(qs, many=True).data)
 
     @action(detail=True, methods=['get', 'post'])
@@ -88,59 +154,41 @@ class GroupViewSet(viewsets.ModelViewSet):
         from django.utils import timezone
         group = self.get_object()
         call = group.calls.filter(status__in=[Call.STATUS_PENDING, Call.STATUS_ACTIVE]).first()
-
         if request.method == 'POST':
             if not request.user.is_authenticated:
                 return Response({'detail': 'Authentication required to start or join seminar call.'}, status=status.HTTP_401_UNAUTHORIZED)
-            
             if not call:
                 call = Call.objects.create(
-                    initiator=request.user,
                     group=group,
+                    initiator=request.user,
                     status=Call.STATUS_ACTIVE,
                     started_at=timezone.now()
                 )
             call.participants.add(request.user)
-            if call.status != Call.STATUS_ACTIVE:
-                call.status = Call.STATUS_ACTIVE
-                call.save()
-            return Response(CallSerializer(call).data, status=status.HTTP_200_OK)
-
+            return Response(CallSerializer(call).data)
         if call:
             return Response(CallSerializer(call).data)
         return Response({'status': 'idle', 'participants_count': 0})
 
     @action(detail=True, methods=['post'])
     def leave_call(self, request, pk=None):
-        from django.utils import timezone
         group = self.get_object()
         call = group.calls.filter(status__in=[Call.STATUS_PENDING, Call.STATUS_ACTIVE]).first()
         if call and request.user.is_authenticated:
             call.participants.remove(request.user)
             if call.participants.count() == 0:
-                call.status = Call.STATUS_ENDED
-                call.ended_at = timezone.now()
-                call.save()
+                _sync_call_ended(call, request.user)
             return Response(CallSerializer(call).data)
         return Response({'status': 'none'})
 
     @action(detail=True, methods=['post'])
     def end_call(self, request, pk=None):
-        from django.utils import timezone
         group = self.get_object()
         call = group.calls.filter(status__in=[Call.STATUS_PENDING, Call.STATUS_ACTIVE]).first()
+        if not call:
+            call = group.calls.order_by('-created_at').first()
         if call:
-            call.status = Call.STATUS_ENDED
-            call.ended_at = timezone.now()
-            call.save()
-            try:
-                Message.objects.create(
-                    sender=request.user,
-                    group=group,
-                    content=f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{request.user.username}:ended:"
-                )
-            except Exception:
-                pass
+            _sync_call_ended(call, request.user)
             return Response(CallSerializer(call).data)
         return Response({'status': 'none'})
 
@@ -415,29 +463,15 @@ class CallViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def leave(self, request, pk=None):
-        from django.utils import timezone
         call = self.get_object()
-        call.participants.remove(request.user)
+        if request.user.is_authenticated:
+            call.participants.remove(request.user)
         if call.participants.count() == 0:
-            call.status = Call.STATUS_ENDED
-            call.ended_at = timezone.now()
-            call.save()
+            _sync_call_ended(call, request.user)
         return Response(CallSerializer(call).data)
 
     @action(detail=True, methods=['post'])
     def end(self, request, pk=None):
-        from django.utils import timezone
         call = self.get_object()
-        call.status = Call.STATUS_ENDED
-        call.ended_at = timezone.now()
-        call.save()
-        if call.group:
-            try:
-                Message.objects.create(
-                    sender=request.user,
-                    group=call.group,
-                    content=f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{request.user.username}:ended:"
-                )
-            except Exception:
-                pass
+        _sync_call_ended(call, request.user)
         return Response(CallSerializer(call).data)

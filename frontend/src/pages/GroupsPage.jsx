@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
@@ -205,15 +205,42 @@ export function GroupsPage() {
     setShowCallModal(true);
   };
 
+  const [isEndingMeeting, setIsEndingMeeting] = useState(false);
+
+  // Deduplicate meeting cards so only the latest state is displayed per meeting code
+  const displayedMessages = useMemo(() => {
+    const latestMeetingIndex = new Map();
+    messages.forEach((m, idx) => {
+      if (typeof m.text === 'string' && m.text.startsWith('[MEETING]:')) {
+        const parts = m.text.split(':');
+        const code = parts[2];
+        if (code) {
+          latestMeetingIndex.set(code, idx);
+        }
+      }
+    });
+
+    return messages.filter((m, idx) => {
+      if (typeof m.text === 'string' && m.text.startsWith('[MEETING]:')) {
+        const parts = m.text.split(':');
+        const code = parts[2];
+        if (code && latestMeetingIndex.get(code) !== idx) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [messages]);
+
   const handleEndMeetingDirect = (mtg) => {
     if (!mtg) return;
     setConfirmEndMeeting(mtg);
   };
 
   const executeEndMeeting = async () => {
-    if (!confirmEndMeeting) return;
+    if (!confirmEndMeeting || isEndingMeeting) return;
+    setIsEndingMeeting(true);
     const mtg = confirmEndMeeting;
-    setConfirmEndMeeting(null);
     try {
       if (mtg.id) {
         await API.post(`/api/social/calls/${mtg.id}/end/`);
@@ -221,6 +248,7 @@ export function GroupsPage() {
         await API.post(`/api/social/groups/${activeGroup.id}/end_call/`);
       }
       setActiveMeeting(null);
+      setConfirmEndMeeting(null);
       if (activeGroup) {
         setActiveGroup((prev) => prev ? { ...prev, active_meeting: null } : null);
         fetchGroupMessages(activeGroup.id);
@@ -228,6 +256,9 @@ export function GroupsPage() {
       fetchGroups(true);
     } catch (err) {
       console.error('Error ending meeting:', err);
+      setConfirmEndMeeting(null);
+    } finally {
+      setIsEndingMeeting(false);
     }
   };
 
@@ -654,7 +685,7 @@ export function GroupsPage() {
               })()}
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {messages.length === 0 ? (
+                {displayedMessages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>forum</span>
                     <p style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 500, margin: '4px 0' }}>
@@ -665,7 +696,7 @@ export function GroupsPage() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((m) => {
+                  displayedMessages.map((m) => {
                     const isMeetingCard = typeof m.text === 'string' && m.text.startsWith('[MEETING]:');
                     if (isMeetingCard) {
                       const parts = m.text.split(':');
@@ -1108,6 +1139,7 @@ export function GroupsPage() {
               </button>
               <button
                 type="button"
+                disabled={isEndingMeeting}
                 onClick={executeEndMeeting}
                 style={{
                   flex: 1.2,
@@ -1118,7 +1150,8 @@ export function GroupsPage() {
                   color: '#FFFFFF',
                   fontWeight: 700,
                   fontSize: '13.5px',
-                  cursor: 'pointer',
+                  cursor: isEndingMeeting ? 'not-allowed' : 'pointer',
+                  opacity: isEndingMeeting ? 0.6 : 1,
                   boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1127,7 +1160,7 @@ export function GroupsPage() {
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>call_end</span>
-                <span>End Meeting</span>
+                <span>{isEndingMeeting ? 'Ending...' : 'End Meeting'}</span>
               </button>
             </div>
           </div>
