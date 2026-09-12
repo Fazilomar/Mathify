@@ -87,7 +87,6 @@ export const API = {
           headers['Authorization'] = `Bearer ${this.getAccess()}`;
           res = await fetch(url, { ...opts, headers });
 
-          // If retried request is still 401, clear session and dispatch unauthorized
           if (res.status === 401) {
             this.clearTokens();
             window.dispatchEvent(new Event('auth:unauthorized'));
@@ -98,7 +97,6 @@ export const API = {
         }
       }
 
-      // Surface rate limiting so polling components can back off
       if (res.status === 429) {
         const retryAfterHeader = res.headers.get('Retry-After');
         window.dispatchEvent(new CustomEvent('api:rate-limited', {
@@ -152,23 +150,16 @@ export const API = {
   },
 };
 
-/**
- * Normalizes absolute or relative media URLs so that images and videos
- * load reliably on desktop, LAN mobile devices, and production hosts.
- */
 export function resolveMediaUrl(url) {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';
 
-  // Data URLs, Blobs, or SVG data strings pass through directly
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
     return trimmed;
   }
 
-  // If already absolute URL
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    // If it points to localhost / 127.0.0.1 while accessed from LAN/mobile or remote
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       if (trimmed.includes('127.0.0.1:8000') || trimmed.includes('localhost:8000')) {
         const path = trimmed.replace(/^https?:\/\/(127\.0\.0\.1|localhost):8000/, '');
@@ -178,7 +169,6 @@ export function resolveMediaUrl(url) {
     return trimmed;
   }
 
-  // Relative path like /media/posts/... or posts/...
   const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   if (API_BASE) {
     return `${API_BASE.replace(/\/+$/, '')}${cleanPath}`;
