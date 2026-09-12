@@ -87,6 +87,7 @@ if getattr(settings, 'FRONTEND_DIST', None) and settings.FRONTEND_DIST.exists():
     ]
 
 urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', spa_or_api_root, name='spa_catchall'),
 ]
 
