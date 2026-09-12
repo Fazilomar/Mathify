@@ -157,8 +157,8 @@ export function RegisterPage() {
             {step === 1
               ? 'Create your credentials & select your academic role.'
               : role === 'student'
-              ? 'Customize your Scholar & Student profile.'
-              : 'Set up your Host, Organizer, or Lecturer profile.'}
+                ? 'Customize your Scholar & Student profile.'
+                : 'Set up your Host, Organizer, or Lecturer profile.'}
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export function RegisterPage() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '13px', fontWeight: 600, color: role === 'student' ? 'var(--primary)' : 'var(--text)' }}>
-                      Student / Scholar
+                      Student.
                     </span>
                     {role === 'student' ? (
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>check_circle</span>
@@ -290,7 +290,7 @@ export function RegisterPage() {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-subtle)', lineHeight: 1.3 }}>
-                    Solve problems, publish mathematical proofs, and participate in sprints.
+                    Solve problems, participate in challenges.
                   </p>
                 </div>
 
@@ -315,7 +315,7 @@ export function RegisterPage() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '13px', fontWeight: 600, color: role === 'host' ? 'var(--primary)' : 'var(--text)' }}>
-                      Host / Organizer
+                      Organiser.
                     </span>
                     {role === 'host' ? (
                       <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>check_circle</span>
@@ -324,7 +324,7 @@ export function RegisterPage() {
                     )}
                   </div>
                   <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-subtle)', lineHeight: 1.3 }}>
-                    Organize competitions, author challenges, and lead study groups.
+                    Organize competitions, mastermind challenges.
                   </p>
                 </div>
               </div>
@@ -471,7 +471,7 @@ export function RegisterPage() {
           </form>
         )}
 
-        {/* ===================== STEP 2: ROLE-SPECIFIC PROFILE SETUP ===================== */}
+        {/*STEP 2: ROLE-SPECIFIC PROFILE SETUP */}
         {step === 2 && (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {/* Context Badge */}

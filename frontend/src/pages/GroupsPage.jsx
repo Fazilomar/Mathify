@@ -203,6 +203,27 @@ export function GroupsPage() {
     setShowCallModal(true);
   };
 
+  const handleEndMeetingDirect = async (mtg) => {
+    if (!mtg) return;
+    if (!window.confirm(`End "${mtg.title || 'Seminar'}" for all participants?`)) return;
+    try {
+      if (mtg.id) {
+        await API.post(`/api/social/calls/${mtg.id}/end/`);
+      } else if (activeGroup?.id) {
+        await API.post(`/api/social/groups/${activeGroup.id}/end_call/`);
+      }
+      setActiveMeeting(null);
+      if (activeGroup) {
+        setActiveGroup((prev) => prev ? { ...prev, active_meeting: null } : null);
+        fetchGroupMessages(activeGroup.id);
+      }
+      fetchGroups(true);
+    } catch (err) {
+      console.error('Error ending meeting:', err);
+    }
+  };
+
+
   const copyMeetingLink = (code) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const link = `${origin}/meet/${code}`;
@@ -531,65 +552,97 @@ export function GroupsPage() {
                 </div>
               </div>
 
-              {((activeGroup && activeGroup.active_meeting) || activeMeeting) && (
-                <div
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginTop: '14px',
-                    marginBottom: '6px',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        backgroundColor: '#EF4444',
-                        boxShadow: '0 0 8px #EF4444',
-                        animation: 'pulse 1.5s infinite',
-                      }}
-                    />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                        🔴 Live Seminar: {(activeGroup.active_meeting || activeMeeting).title}
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                        Hosted by @{(activeGroup.active_meeting || activeMeeting).initiator || (activeGroup.active_meeting || activeMeeting).initiator_username || 'Host'} • {(activeGroup.active_meeting || activeMeeting).participants_count || 1} connected
+              {((activeGroup && activeGroup.active_meeting) || activeMeeting) && (() => {
+                const currentMeeting = activeGroup?.active_meeting || activeMeeting;
+                const isHost = 
+                  currentMeeting.initiator === user?.username ||
+                  currentMeeting.initiator_username === user?.username ||
+                  activeGroup?.created_by === user?.id ||
+                  activeGroup?.created_by?.id === user?.id;
+
+                return (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: '14px',
+                      marginBottom: '6px',
+                      gap: '12px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span
+                        style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          backgroundColor: '#EF4444',
+                          boxShadow: '0 0 8px #EF4444',
+                          animation: 'pulse 1.5s infinite',
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                          🔴 Live Seminar: {currentMeeting.title}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                          Hosted by @{currentMeeting.initiator || currentMeeting.initiator_username || 'Host'} • {currentMeeting.participants_count || 1} connected
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleJoinMeeting(activeGroup.active_meeting || activeMeeting)}
-                      className="btn-primary"
-                      style={{ padding: '6px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>login</span>
-                      Join Meeting
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyMeetingLink((activeGroup.active_meeting || activeMeeting).meeting_code)}
-                      className="btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#27272A', color: 'var(--text)', border: '1px solid var(--border)' }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
-                      Copy Link
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleJoinMeeting(currentMeeting)}
+                        className="btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>login</span>
+                        Join Meeting
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => copyMeetingLink(currentMeeting.meeting_code)}
+                        className="btn-secondary"
+                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#27272A', color: 'var(--text)', border: '1px solid var(--border)' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                        Copy Link
+                      </button>
+                      {isHost && (
+                        <button
+                          type="button"
+                          onClick={() => handleEndMeetingDirect(currentMeeting)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            color: '#F87171',
+                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                          }}
+                          title="End meeting for all scholars"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>call_end</span>
+                          End Meeting
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {messages.length === 0 ? (
@@ -678,7 +731,7 @@ export function GroupsPage() {
                             </div>
                           )}
 
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                             {mtgStatus !== 'ended' && (
                               <button
                                 type="button"
@@ -699,7 +752,31 @@ export function GroupsPage() {
                               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
                               <span>Copy Link</span>
                             </button>
+                            {mtgStatus === 'active' && (mtgHost === user?.username || activeGroup?.created_by === user?.id) && (
+                              <button
+                                type="button"
+                                onClick={() => handleEndMeetingDirect({ id: mtgId, title: mtgTitle })}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: '12px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                                  color: '#F87171',
+                                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                }}
+                                title="End meeting for all participants"
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>call_end</span>
+                                <span>End</span>
+                              </button>
+                            )}
                           </div>
+
                         </div>
                       );
                     }

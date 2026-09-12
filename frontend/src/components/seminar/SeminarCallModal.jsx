@@ -21,9 +21,21 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
   const [isSpeakingLocal, setIsSpeakingLocal] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0); // 0 to 100 for green room audio meter
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const meetingCode = meeting?.meeting_code || `mtf-${group?.id || 'meet'}`;
   const meetingTitle = meeting?.title || `${group?.name || 'Academic'} Seminar`;
+
+  const isHost = Boolean(
+    meeting?.initiator === user?.username ||
+    meeting?.initiator?.username === user?.username ||
+    meeting?.initiator?.id === user?.id ||
+    meeting?.initiator_username === user?.username ||
+    group?.created_by === user?.id ||
+    group?.created_by?.id === user?.id ||
+    group?.is_admin === true
+  );
+
 
   const [participants, setParticipants] = useState([
     { id: user?.id || 1, name: user?.username || 'You', isMe: true, isSpeaking: false, role: 'Scholar' },
@@ -200,6 +212,27 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
     });
   }, []);
 
+  const cleanupTracksAndConnections = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+    }
+    if (screenAudioTrackRef.current) {
+      screenAudioTrackRef.current.stop();
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {});
+    }
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+    }
+    Object.values(peerConnectionsRef.current).forEach((pc) => {
+      try { pc.close(); } catch { }
+    });
+  }, []);
+
   const getOrCreatePeerConnection = useCallback((peerUsername) => {
     if (peerConnectionsRef.current[peerUsername]) {
       return peerConnectionsRef.current[peerUsername];
@@ -246,6 +279,11 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
       const res = await API.get(`/api/social/groups/${group.id}/call/`);
       if (res.ok) {
         const data = await res.json();
+        if (data && (data.status === 'ended' || (data.status === 'idle' && !isPreJoin))) {
+          cleanupTracksAndConnections();
+          onClose();
+          return;
+        }
         if (data && data.participants) {
           const currentUsername = user?.username || 'You';
           const list = data.participants.map((uname, idx) => ({
@@ -261,6 +299,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
           }
 
           if (isMountedRef.current) setParticipants(list);
+
 
           const currentRemoteUsernames = new Set(
             data.participants.filter((u) => u !== currentUsername)
@@ -336,7 +375,6 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                   .then((offer) => pc.setLocalDescription(offer))
                   .then(() => sendSignal(sender, 'offer', pc.localDescription))
                   .catch((e) => console.warn('Offer error:', e));
-              }
             } else if (sig.type === 'leave') {
               closeAndRemovePeer(sender);
               setParticipants((prev) => prev.filter((p) => p.name !== sender));
@@ -345,7 +383,9 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
         }
       }
     } catch { }
-  }, [group?.id, user?.username, isPreJoin, closeAndRemovePeer, getOrCreatePeerConnection]);
+
+  }, [group?.id, user?.username, isPreJoin, closeAndRemovePeer, getOrCreatePeerConnection, cleanupTracksAndConnections, onClose]);
+
 
   // Activate signaling loop only once user enters the conference (isPreJoin === false)
   useEffect(() => {
@@ -474,12 +514,33 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
     setIsPreJoin(false);
   };
 
-  const handleEndCall = () => {
-    if (group?.id) {
-      API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
+  const handleLeaveCall = () => {
+    sendSignal(null, 'leave', { username: user?.username }).catch(() => {});
+    if (meeting?.id) {
+      API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => {});
+    } else if (group?.id) {
+      API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => {});
     }
+    cleanupTracksAndConnections();
     onClose();
   };
+
+
+  const handleEndMeetingForAll = async () => {
+    try {
+      await sendSignal(null, 'end_meeting', {}).catch(() => {});
+      if (meeting?.id) {
+        await API.post(`/api/social/calls/${meeting.id}/end/`, {});
+      } else if (group?.id) {
+        await API.post(`/api/social/groups/${group.id}/end_call/`, {});
+      }
+    } catch (err) {
+      console.warn('Error ending meeting:', err);
+    }
+    cleanupTracksAndConnections();
+    onClose();
+  };
+
 
   const handleCopyLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -817,9 +878,59 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>mic_off</span>
                     <span>Join with Mic Muted</span>
                   </button>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleLeaveCall}
+                      style={{
+                        flex: 1,
+                        padding: '9px 12px',
+                        fontSize: '12.5px',
+                        backgroundColor: 'transparent',
+                        color: 'var(--text-subtle)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+                      <span>Cancel</span>
+                    </button>
+
+                    {isHost && (
+                      <button
+                        type="button"
+                        onClick={() => setShowEndConfirm(true)}
+                        style={{
+                          flex: 1,
+                          padding: '9px 12px',
+                          fontSize: '12.5px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                          color: '#F87171',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>call_end</span>
+                        <span>End Meeting</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+
           </div>
         ) : (
           /* ========================================================= */
@@ -1136,36 +1247,215 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleEndCall}
-                style={{
-                  padding: '0 22px',
-                  height: '46px',
-                  borderRadius: '23px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  border: 'none',
-                  backgroundColor: '#EF4444',
-                  color: '#FFFFFF',
-                  fontWeight: 600,
-                  fontSize: '13.5px',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                  call_end
-                </span>
-                <span>Leave Seminar</span>
-              </button>
+              {isHost ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleLeaveCall}
+                    style={{
+                      padding: '0 18px',
+                      height: '46px',
+                      borderRadius: '23px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      border: '1px solid var(--border)',
+                      backgroundColor: '#27272A',
+                      color: 'var(--text)',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="Leave meeting (meeting stays open for others)"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>logout</span>
+                    <span>Leave</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowEndConfirm(true)}
+                    style={{
+                      padding: '0 22px',
+                      height: '46px',
+                      borderRadius: '23px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      border: 'none',
+                      backgroundColor: '#EF4444',
+                      color: '#FFFFFF',
+                      fontWeight: 600,
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title="End seminar for all participants"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
+                    <span>End Meeting</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLeaveCall}
+                  style={{
+                    padding: '0 22px',
+                    height: '46px',
+                    borderRadius: '23px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    border: 'none',
+                    backgroundColor: '#EF4444',
+                    color: '#FFFFFF',
+                    fontWeight: 600,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="End meeting for yourself"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
+                  <span>End Meeting</span>
+                </button>
+              )}
             </div>
           </>
         )}
+
+        {/* End Meeting for Everyone Confirmation Modal */}
+        {showEndConfirm && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px',
+            }}
+          >
+            <div
+              style={{
+                maxWidth: '400px',
+                width: '100%',
+                backgroundColor: '#1E1E26',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                borderRadius: '16px',
+                padding: '24px',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.9)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                    color: '#EF4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>call_end</span>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text)' }}>
+                    End Seminar?
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                    Choose whether to end this seminar for everyone or only leave yourself.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  onClick={handleLeaveCall}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: '#EF4444',
+                    color: '#FFF',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
+                  <span>End Meeting for Myself</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleEndMeetingForAll}
+                  style={{
+                    width: '100%',
+                    padding: '11px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: '#27272A',
+                    color: '#F87171',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>power_settings_new</span>
+                  <span>End Meeting for Everyone</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowEndConfirm(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-subtle)',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    padding: '8px',
+                    marginTop: '2px',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
+
   );
 }
 

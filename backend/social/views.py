@@ -124,6 +124,27 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response(CallSerializer(call).data)
         return Response({'status': 'none'})
 
+    @action(detail=True, methods=['post'])
+    def end_call(self, request, pk=None):
+        from django.utils import timezone
+        group = self.get_object()
+        call = group.calls.filter(status__in=[Call.STATUS_PENDING, Call.STATUS_ACTIVE]).first()
+        if call:
+            call.status = Call.STATUS_ENDED
+            call.ended_at = timezone.now()
+            call.save()
+            try:
+                Message.objects.create(
+                    sender=request.user,
+                    group=group,
+                    content=f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{request.user.username}:ended:"
+                )
+            except Exception:
+                pass
+            return Response(CallSerializer(call).data)
+        return Response({'status': 'none'})
+
+
     @action(detail=True, methods=['get', 'post'])
     def call_signals(self, request, pk=None):
         import datetime
