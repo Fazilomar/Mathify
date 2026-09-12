@@ -595,11 +595,11 @@ export function FeedPage() {
                   )}
                 </div>
 
-                {/* Post Body */}
+                {/* Post Body with Inline LaTeX Rendering */}
                 {post.content && (
-                  <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
-                    {post.content}
-                  </p>
+                  <div style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
+                    <MathRenderer content={post.content} />
+                  </div>
                 )}
 
               {/* LaTeX Formula */}

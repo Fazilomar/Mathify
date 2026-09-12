@@ -22,7 +22,23 @@ export function AITutorPage() {
     { title: "Sylow Theorems", prompt: "State and explain the intuition behind Sylow's first theorem in group theory with an example." },
   ];
 
-  const quickSymbols = ['\\forall', '\\exists', '\\in', '\\implies', '\\sum', '\\int', '\\mathbb{R}', '\\mathbb{C}'];
+  const quickSymbols = [
+    { label: '∀', code: '\\forall ' },
+    { label: '∃', code: '\\exists ' },
+    { label: '∈', code: '\\in ' },
+    { label: '∉', code: '\\notin ' },
+    { label: '⟹', code: '\\implies ' },
+    { label: '⟺', code: '\\iff ' },
+    { label: '∑', code: '\\sum ' },
+    { label: '∫', code: '\\int ' },
+    { label: 'ℝ', code: '\\mathbb{R}' },
+    { label: 'ℂ', code: '\\mathbb{C}' },
+    { label: 'ℤ', code: '\\mathbb{Z}' },
+    { label: 'ℕ', code: '\\mathbb{N}' },
+    { label: 'π', code: '\\pi ' },
+    { label: '∞', code: '\\infty ' },
+    { label: '√', code: '\\sqrt{} ' },
+  ];
 
   const fetchSessions = async () => {
     try {
@@ -360,7 +376,7 @@ export function AITutorPage() {
               backgroundColor: '#16161B',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
               <button
                 type="button"
                 className="ai-tutor-sidebar-toggle"
@@ -376,6 +392,7 @@ export function AITutorPage() {
                 )}
               </button>
               <div
+                className="ai-tutor-header-icon"
                 style={{
                   width: '32px',
                   height: '32px',
@@ -391,77 +408,90 @@ export function AITutorPage() {
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>smart_toy</span>
               </div>
-              <div>
-                <h2 style={{ fontSize: '14.5px', margin: 0, fontWeight: 700, color: 'var(--text)' }}>
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <h2 style={{ fontSize: '14.5px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   Mathify AI Theorem Research Mentor
                 </h2>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                  Gemini Flash Mathematical Reasoning Engine
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', flexShrink: 0 }} />
+                  <span>Gemini Reasoning Engine</span>
                 </div>
               </div>
             </div>
 
-            <span className="badge-academic" style={{ fontSize: '11px', padding: '2px 8px' }}>
-              LaTeX Enabled
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={createNewSession}
+                className="btn-secondary"
+                style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="New Research Session"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
+                <span className="desktop-only-text">New</span>
+              </button>
+              <span className="badge-academic ai-tutor-latex-badge" style={{ fontSize: '11px', padding: '2px 8px' }}>
+                LaTeX
+              </span>
+            </div>
           </header>
 
           {/* Messages Stream */}
           <div className="ai-tutor-messages" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {messages.length === 0 ? (
-              <div style={{ margin: 'auto', maxWidth: '640px', textAlign: 'center', width: '100%' }}>
+              <div className="ai-tutor-empty-state" style={{ margin: 'auto', maxWidth: '640px', textAlign: 'center', width: '100%', padding: '16px 8px' }}>
                 <div
+                  className="ai-tutor-empty-icon"
                   style={{
-                    width: '52px',
-                    height: '52px',
+                    width: '48px',
+                    height: '48px',
                     borderRadius: '12px',
                     backgroundColor: 'var(--primary-subtle)',
                     border: '1px solid var(--primary-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    margin: '0 auto 16px',
+                    margin: '0 auto 12px',
                     color: 'var(--primary)',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>history_edu</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>history_edu</span>
                 </div>
-                <h3 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px', color: 'var(--text)' }}>
-                  How can I assist your mathematical research?
+                <h3 className="ai-tutor-empty-title" style={{ fontSize: '20px', fontWeight: 700, marginBottom: '6px', color: 'var(--text)' }}>
+                  How can I assist your research?
                 </h3>
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.55 }}>
+                <p className="ai-tutor-empty-desc" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
                   Ask for LaTeX derivations, topological decompositions, Olympiad step-by-step solutions, or lemma verifications.
                 </p>
 
-                {/* Responsive 2-column Starter Grid */}
-                <div className="ai-tutor-prompts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px', textAlign: 'left' }}>
+                {/* Responsive Starter Grid */}
+                <div className="ai-tutor-prompts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px', textAlign: 'left' }}>
                   {starterPrompts.map((p) => (
                     <button
                       key={p.title}
                       onClick={() => handleSendMessage(p.prompt)}
-                      className="card"
+                      className="card ai-tutor-prompt-card"
                       style={{
-                        padding: '14px 16px',
+                        padding: '12px 14px',
                         backgroundColor: '#141418',
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        gap: '6px',
+                        gap: '4px',
                         transition: 'border-color 0.15s ease',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--primary)' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--primary)' }}>
                           {p.title}
                         </span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--text-subtle)' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--text-subtle)' }}>
                           arrow_forward
                         </span>
                       </div>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
                         {p.prompt}
                       </span>
                     </button>
@@ -538,19 +568,20 @@ export function AITutorPage() {
           {/* Chat Input & Toolbar */}
           <div className="ai-tutor-composer" style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: '#16161B' }}>
             {/* Quick Math Symbols */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px', whiteSpace: 'nowrap' }}>
                 Insert Symbol:
               </span>
-              {quickSymbols.map((sym) => (
+              {quickSymbols.map((s) => (
                 <button
-                  key={sym}
+                  key={s.label}
                   type="button"
-                  onClick={() => setInputMessage((prev) => prev + ` $${sym}$ `)}
+                  onClick={() => setInputMessage((prev) => prev ? `${prev} $${s.code}$ ` : `$${s.code}$ `)}
                   className="symbol-chip"
-                  style={{ fontSize: '11.5px', padding: '2px 7px' }}
+                  title={`Insert LaTeX: ${s.code}`}
+                  style={{ fontSize: '12.5px', padding: '3px 8px', fontWeight: 600, flexShrink: 0 }}
                 >
-                  ${sym}$
+                  {s.label}
                 </button>
               ))}
             </div>

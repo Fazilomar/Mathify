@@ -710,7 +710,92 @@ button, input, textarea, select {
   font-size: 0.88em;
 }
 
+.math-divider {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+  opacity: 0.8;
+}
+
+.math-h2 {
+  font-size: 1.25em;
+  font-weight: 700;
+  color: var(--text);
+  margin: 14px 0 8px;
+}
+
+.math-h3 {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 12px 0 6px;
+}
+
+.math-h4 {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--text);
+  margin: 10px 0 4px;
+}
+
+.math-h5 {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
+}
+
+.math-quote {
+  border-left: 3px solid var(--primary);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.math-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.math-bullet {
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.math-code-block {
+  background: #111116;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 0.88em;
+  color: #E2E8F0;
+}
+
 /* AI Tutor Mobile & Desktop Layout */
+.full-height-main {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  min-height: calc(100vh - var(--nav-height));
+  height: calc(100vh - var(--nav-height));
+  overflow: hidden;
+}
+
+.full-height-container {
+  height: 100%;
+  max-width: 1280px;
+}
+
+.desktop-only-text {
+  display: inline;
+}
 .ai-tutor-sidebar-toggle,
 .ai-tutor-sidebar-close,
 .ai-tutor-sidebar-backdrop {
@@ -818,21 +903,37 @@ button, input, textarea, select {
 }
 
 @media (max-width: 768px) {
-  /* AI Tutor: Uncluttered fluid layout, no suffocating glass card */
+  /* AI Tutor: Uncluttered fluid layout, full-viewport breathing room */
+  .full-height-main {
+    padding-top: 0 !important;
+    padding-bottom: var(--bottom-nav-height) !important;
+    min-height: calc(100dvh - var(--nav-height)) !important;
+    height: calc(100dvh - var(--nav-height)) !important;
+    overflow: hidden !important;
+  }
+
+  .full-height-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
   .ai-tutor-shell {
-    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 16px) !important;
-    min-height: 480px !important;
+    height: 100% !important;
+    min-height: 0 !important;
     width: 100% !important;
   }
 
   .ai-tutor-layout {
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: 12px !important;
+    border: none !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     position: relative !important;
     height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
+    background: #111115 !important;
   }
 
   /* Off-canvas sessions drawer on mobile */
@@ -933,8 +1034,8 @@ button, input, textarea, select {
   }
 
   .ai-tutor-message-bubble {
-    max-width: 92% !important;
-    padding: 12px 14px !important;
+    max-width: 95% !important;
+    padding: 11px 14px !important;
     font-size: 13.5px;
   }
 

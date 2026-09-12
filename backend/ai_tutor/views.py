@@ -163,8 +163,14 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
         except Exception:
             has_tutor = False
 
+        default_prompt = (
+            'You are the Mathify AI Theorem Research Mentor. You explain mathematical concepts and derivations '
+            'with rigorous academic precision. ALWAYS format mathematical expressions using standard LaTeX notation: '
+            'use $...$ for inline formulas (e.g. $e^{i\\pi} + 1 = 0$, $x \\in \\mathbb{R}$) and $$...$$ for block '
+            'display equations on their own lines. Use clean Markdown headings (##, ###) and bullet points for derivations.'
+        )
         system_prompt = (session.tutor.model_config.get('system_prompt', '')
-                         if has_tutor else 'You are a helpful math tutor.')
+                         if has_tutor and session.tutor.model_config.get('system_prompt') else default_prompt)
 
         user = None
         try:
@@ -270,9 +276,14 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             )
         yield f"data: {json.dumps({'done': True})}\n\n"
 
-    def _get_ai_reply(self, session: ChatSession, history: list) -> str:
+        default_prompt = (
+            'You are the Mathify AI Theorem Research Mentor. You explain mathematical concepts and derivations '
+            'with rigorous academic precision. ALWAYS format mathematical expressions using standard LaTeX notation: '
+            'use $...$ for inline formulas (e.g. $e^{i\\pi} + 1 = 0$, $x \\in \\mathbb{R}$) and $$...$$ for block '
+            'display equations on their own lines. Use clean Markdown headings (##, ###) and bullet points for derivations.'
+        )
         system_prompt = (session.tutor.model_config.get('system_prompt', '')
-                         if session and session.tutor else 'You are a helpful math tutor.')
+                         if session and session.tutor and session.tutor.model_config.get('system_prompt') else default_prompt)
         
         user = None
         if session:

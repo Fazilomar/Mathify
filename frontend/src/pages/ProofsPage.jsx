@@ -316,6 +316,20 @@ export function ProofsPage() {
     );
   });
 
+  const getProofPreview = (content) => {
+    if (!content) return '';
+    // If structured with dividers (---), show first section (hypothesis) as concise preview
+    const sections = content.split(/\n\s*---\s*\n/);
+    if (sections.length > 1 && sections[0].trim()) {
+      return sections[0].trim();
+    }
+    // Otherwise clean cut off at 260 characters
+    if (content.length <= 260) return content;
+    const cut = content.slice(0, 260);
+    const lastSpace = cut.lastIndexOf(' ');
+    return (lastSpace > 180 ? cut.slice(0, lastSpace) : cut) + '...';
+  };
+
   return (
     <div style={{ width: '100%' }}>
       {/* Toast Notification */}
@@ -631,17 +645,12 @@ export function ProofsPage() {
                       </div>
                     )}
 
-                    {/* Text Statement or Abstract */}
+                    {/* Text Statement or Abstract with KaTeX & Markdown Rendering */}
                     {p.content && (
-                      <div style={{ fontSize: '13.5px', color: 'var(--text-muted)', lineHeight: 1.6, margin: '12px 0' }}>
-                        {isExpanded ? (
-                          <div style={{ whiteSpace: 'pre-line' }}>{p.content}</div>
-                        ) : (
-                          <div>
-                            {p.content.slice(0, 240)}
-                            {p.content.length > 240 && '...'}
-                          </div>
-                        )}
+                      <div style={{ fontSize: '13.5px', color: 'var(--text)', lineHeight: 1.6, margin: '12px 0' }}>
+                        <MathRenderer
+                          content={isExpanded ? p.content : getProofPreview(p.content)}
+                        />
                       </div>
                     )}
 
@@ -809,8 +818,8 @@ export function ProofsPage() {
             <ul style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.6, paddingLeft: '16px', margin: '6px 0 0' }}>
               <li>State explicit domain and hypothesis premises.</li>
               <li>Every deduction step should reference an established lemma or axiom.</li>
-              <li>Ensure all quantifiers ($\forall, \exists$) are well-ordered.</li>
-              <li>Sign off verified theorems with Q.E.D. ($\blacksquare$).</li>
+              <li>Ensure all quantifiers (∀, ∃) are well-ordered.</li>
+              <li>Sign off verified theorems with Q.E.D. (∎).</li>
             </ul>
           </div>
         </div>
