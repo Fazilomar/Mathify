@@ -101,6 +101,24 @@ export function GroupsPage() {
     };
   }, [fetchGroups]);
 
+  const [messagesRefreshKey, setMessagesRefreshKey] = useState(0);
+
+  const updateMeetingStatusLocally = useCallback((meetingCode, newStatus = 'ended') => {
+    if (!meetingCode) return;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (typeof m.text === 'string' && m.text.startsWith('[MEETING]:')) {
+          const parts = m.text.split(':');
+          if (parts[2] === meetingCode) {
+            parts[5] = newStatus;
+            return { ...m, text: parts.join(':') };
+          }
+        }
+        return m;
+      })
+    );
+  }, []);
+
   useEffect(() => {
     if (!activeGroup?.id) {
       setMessages([]);
@@ -154,10 +172,19 @@ export function GroupsPage() {
     fetchMessages(true);
 
     let pollInterval = null;
+    let pollCount = 0;
     const startPolling = () => {
       if (pollInterval) return;
       pollInterval = setInterval(() => {
-        if (document.visibilityState === 'visible') fetchMessages(false);
+        if (document.visibilityState === 'visible') {
+          pollCount++;
+          // Every 4 polls (~8s), run a full sync so meeting status changes from other users are picked up in real-time
+          if (pollCount % 4 === 0) {
+            fetchMessages(true);
+          } else {
+            fetchMessages(false);
+          }
+        }
       }, 2000);
     };
     const stopPolling = () => {
@@ -177,20 +204,31 @@ export function GroupsPage() {
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [activeGroup?.id]);
+  }, [activeGroup?.id, messagesRefreshKey]);
 
-  const handleStartInstantMeeting = async () => {
+  const [showStartInstantModal, setShowStartInstantModal] = useState(false);
+  const [customMeetingTitle, setCustomMeetingTitle] = useState('');
+
+  const openStartInstantModal = () => {
+    setCustomMeetingTitle(`${activeGroup?.name || 'Academic'} Seminar`);
+    setShowStartInstantModal(true);
+  };
+
+  const handleStartInstantMeeting = async (customTitle) => {
     if (!activeGroup) return;
+    const finalTitle = (customTitle || customMeetingTitle || `${activeGroup.name} Seminar`).trim();
+    setShowStartInstantModal(false);
     try {
       const res = await API.post(`/api/social/groups/${activeGroup.id}/meetings/`, {
         is_instant: true,
-        title: `${activeGroup.name} Seminar`,
+        title: finalTitle,
       });
       if (res.ok) {
         const data = await res.json();
         setActiveMeeting(data);
         setShowCallModal(true);
         fetchGroups(true);
+        setMessagesRefreshKey((k) => k + 1);
       } else {
         setShowCallModal(true);
       }
@@ -241,6 +279,10 @@ export function GroupsPage() {
     if (!confirmEndMeeting || isEndingMeeting) return;
     setIsEndingMeeting(true);
     const mtg = confirmEndMeeting;
+    const code = mtg.meeting_code;
+    if (code) {
+      updateMeetingStatusLocally(code, 'ended');
+    }
     try {
       if (mtg.id) {
         await API.post(`/api/social/calls/${mtg.id}/end/`);
@@ -251,8 +293,8 @@ export function GroupsPage() {
       setConfirmEndMeeting(null);
       if (activeGroup) {
         setActiveGroup((prev) => prev ? { ...prev, active_meeting: null } : null);
-        fetchGroupMessages(activeGroup.id);
       }
+      setMessagesRefreshKey((k) => k + 1);
       fetchGroups(true);
     } catch (err) {
       console.error('Error ending meeting:', err);
@@ -515,7 +557,7 @@ export function GroupsPage() {
                         type="button"
                         className="btn-primary"
                         style={{ padding: '7px 14px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                        onClick={handleStartInstantMeeting}
+                        onClick={openStartInstantModal}
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
                         Start Meeting
@@ -548,7 +590,7 @@ export function GroupsPage() {
                         <div
                           onClick={() => {
                             setMeetingDropdownOpen(false);
-                            handleStartInstantMeeting();
+                            openStartInstantModal();
                           }}
                           style={{
                             padding: '10px 14px',
@@ -1003,12 +1045,178 @@ export function GroupsPage() {
           group={activeGroup}
           meeting={activeMeeting}
           initialPreJoin={true}
+          onMeetingEnded={(code) => {
+            if (code) updateMeetingStatusLocally(code, 'ended');
+            if (activeMeeting?.meeting_code) updateMeetingStatusLocally(activeMeeting.meeting_code, 'ended');
+            setActiveMeeting(null);
+            setActiveGroup((prev) => (prev ? { ...prev, active_meeting: null } : null));
+            setMessagesRefreshKey((k) => k + 1);
+            fetchGroups(true);
+          }}
           onClose={() => {
             setShowCallModal(false);
             setActiveMeeting(null);
+            setMessagesRefreshKey((k) => k + 1);
             fetchGroups(true);
           }}
         />
+      )}
+
+      {/* Start Live Seminar Custom Topic Modal */}
+      {showStartInstantModal && activeGroup && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(10, 10, 14, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setShowStartInstantModal(false)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '480px',
+              width: '100%',
+              backgroundColor: '#16161B',
+              border: '1px solid var(--border)',
+              borderRadius: '16px',
+              padding: '28px',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.9)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: 'var(--primary-subtle)',
+                    border: '1px solid var(--primary-border)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>videocam</span>
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
+                    Start Live Seminar
+                  </h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    #{activeGroup.name}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStartInstantModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer', padding: '4px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleStartInstantMeeting();
+              }}
+            >
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                  Seminar Topic / Title
+                </label>
+                <input
+                  type="text"
+                  value={customMeetingTitle}
+                  onChange={(e) => setCustomMeetingTitle(e.target.value)}
+                  placeholder="e.g. Real Analysis Problem Solving, Topology Q&A"
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    fontSize: '14px',
+                    backgroundColor: '#1E1E26',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    color: 'var(--text)',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Quick Topic Chips */}
+              <div style={{ marginBottom: '22px' }}>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)', marginBottom: '8px' }}>
+                  Quick topics:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {[
+                    'Theorem Derivations',
+                    'Problem Set Solving',
+                    'Paper & Proof Review',
+                    'Open Q&A Discussion',
+                  ].map((topic) => (
+                    <button
+                      key={topic}
+                      type="button"
+                      onClick={() => setCustomMeetingTitle(`${activeGroup.name}: ${topic}`)}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '11.5px',
+                        backgroundColor: '#1F1F28',
+                        color: 'var(--text-muted)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--primary)';
+                        e.currentTarget.style.borderColor = 'var(--primary-border)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                      }}
+                    >
+                      + {topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowStartInstantModal(false)}
+                  className="btn-secondary"
+                  style={{ padding: '10px 18px', fontSize: '13.5px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!customMeetingTitle.trim()}
+                  className="btn-primary"
+                  style={{ padding: '10px 20px', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>videocam</span>
+                  <span>Launch Seminar</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {showWhiteboardModal && activeGroup && (

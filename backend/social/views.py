@@ -440,6 +440,19 @@ class CallViewSet(viewsets.ModelViewSet):
         )
         call.participants.add(self.request.user)
 
+    def perform_update(self, serializer):
+        call = serializer.save()
+        if call.group:
+            prefix = f"[MEETING]:{call.id}:"
+            code_sub = f":{call.meeting_code}:"
+            from django.db.models import Q
+            for msg in call.group.messages.filter(Q(content__startswith=prefix) | Q(content__contains=code_sub)):
+                parts = msg.content.split(':')
+                if len(parts) >= 6:
+                    parts[3] = call.title
+                    msg.content = ':'.join(parts)
+                    msg.save(update_fields=['content'])
+
     @action(detail=False, methods=['get'], url_path='by-code/(?P<code>[^/.]+)', permission_classes=[permissions.AllowAny])
     def by_code(self, request, code=None):
         call = Call.objects.filter(meeting_code=code).first()

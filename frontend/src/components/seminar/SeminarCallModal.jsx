@@ -10,7 +10,7 @@ const ICE_SERVERS = {
   ],
 };
 
-export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = true }) {
+export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, initialPreJoin = true }) {
   const { user } = useAuth();
   const [isPreJoin, setIsPreJoin] = useState(initialPreJoin);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -24,7 +24,26 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   const meetingCode = meeting?.meeting_code || `mtf-${group?.id || 'meet'}`;
-  const meetingTitle = meeting?.title || `${group?.name || 'Academic'} Seminar`;
+  const [meetingTitle, setMeetingTitle] = useState(meeting?.title || `${group?.name || 'Academic'} Seminar`);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(meetingTitle);
+
+  const handleSaveTitle = async () => {
+    const trimmed = editedTitle.trim();
+    if (!trimmed) {
+      setIsEditingTitle(false);
+      return;
+    }
+    setMeetingTitle(trimmed);
+    setIsEditingTitle(false);
+    if (meeting?.id) {
+      try {
+        await API.patch(`/api/social/calls/${meeting.id}/`, { title: trimmed });
+      } catch (e) {
+        console.warn('Failed to update title:', e);
+      }
+    }
+  };
 
   const isHost = Boolean(
     meeting?.initiator === user?.username ||
@@ -380,6 +399,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
               closeAndRemovePeer(sender);
               setParticipants((prev) => prev.filter((p) => p.name !== sender));
             } else if (sig.type === 'end_meeting') {
+              onMeetingEnded?.(meetingCode, meeting?.id);
               cleanupTracksAndConnections();
               onClose();
               return;
@@ -531,6 +551,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
       } else if (group?.id) {
         await API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => {});
       }
+      onMeetingEnded?.(meetingCode, meeting?.id);
     } finally {
       cleanupTracksAndConnections();
       onClose();
@@ -548,6 +569,7 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
       } else if (group?.id) {
         await API.post(`/api/social/groups/${group.id}/end_call/`, {});
       }
+      onMeetingEnded?.(meetingCode, meeting?.id);
     } catch (err) {
       console.warn('Error ending meeting:', err);
     } finally {
@@ -616,9 +638,70 @@ export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = tru
                   <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--primary)' }}>
                     videocam
                   </span>
-                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
-                    {meetingTitle}
-                  </h2>
+                  {isEditingTitle ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveTitle();
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <input
+                        type="text"
+                        value={editedTitle}
+                        onChange={(e) => setEditedTitle(e.target.value)}
+                        autoFocus
+                        onBlur={handleSaveTitle}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '18px',
+                          fontWeight: 700,
+                          backgroundColor: '#1E1E26',
+                          color: 'var(--text)',
+                          border: '1px solid var(--primary)',
+                          borderRadius: '6px',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        Save
+                      </button>
+                    </form>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
+                        {meetingTitle}
+                      </h2>
+                      {isHost && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditedTitle(meetingTitle);
+                            setIsEditingTitle(true);
+                          }}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-subtle)',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            borderRadius: '4px',
+                          }}
+                          title="Edit seminar topic"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>
+                            edit
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>Code: <strong style={{ color: 'var(--primary)' }}>{meetingCode}</strong></span>
