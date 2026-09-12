@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { API } from '../../api/client';
@@ -17,6 +18,18 @@ export function Navbar() {
     window.addEventListener('nav:open-drawer', handleOpenDrawer);
     return () => window.removeEventListener('nav:open-drawer', handleOpenDrawer);
   }, []);
+
+  useEffect(() => {
+    if (showMobileDrawer) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showMobileDrawer]);
+
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -347,10 +360,11 @@ export function Navbar() {
                     user?.username?.[0]?.toUpperCase() || 'M'
                   )}
                 </div>
-                <span style={{ fontSize: '13px', fontWeight: 500, maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span className="hide-on-mobile" style={{ fontSize: '13px', fontWeight: 500, maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {user?.username || 'User'}
                 </span>
                 <span
+                  className="hide-on-mobile"
                   style={{
                     fontSize: '10.5px',
                     fontWeight: 700,
@@ -365,7 +379,7 @@ export function Navbar() {
                 >
                   {user?.role === 'host' ? 'Host' : 'Student'}
                 </span>
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--text-subtle)' }}>expand_more</span>
+                <span className="hide-on-mobile material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--text-subtle)' }}>expand_more</span>
               </button>
 
               {/* Dropdown Menu */}
@@ -467,143 +481,212 @@ export function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Full Slide-In Drawer */}
-      {showMobileDrawer && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 999,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setShowMobileDrawer(false)}
-        >
+      {/* Mobile Full Slide-In Drawer rendered outside header to avoid backdrop-filter stacking context trap */}
+      {showMobileDrawer &&
+        createPortal(
           <div
             style={{
-              width: '290px',
-              maxWidth: '85vw',
-              height: '100%',
-              backgroundColor: '#16161B',
-              borderLeft: '1px solid var(--border)',
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99999,
+              backgroundColor: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
               display: 'flex',
-              flexDirection: 'column',
-              padding: '20px',
-              boxShadow: '-10px 0 30px rgba(0,0,0,0.8)',
-              overflowY: 'auto',
+              justifyContent: 'flex-end',
+              animation: 'drawerFadeIn 0.2s ease',
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setShowMobileDrawer(false)}
           >
-            {/* Drawer Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '26px',
-                    height: '26px',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--primary-subtle)',
-                    border: '1px solid var(--primary-border)',
-                    color: 'var(--primary)',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                  }}
-                >
-                  &forall;
-                </span>
-                <span className="font-display" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
-                  Mathify
-                </span>
-              </div>
-              <button
-                onClick={() => setShowMobileDrawer(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer', padding: '4px' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>close</span>
-              </button>
-            </div>
-
-            {/* User Identity Card on Mobile */}
-            {isAuthenticated && (
+            <div
+              style={{
+                width: '300px',
+                maxWidth: '85vw',
+                height: '100%',
+                backgroundColor: '#16161B',
+                borderLeft: '1px solid var(--border)',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '20px',
+                boxShadow: '-10px 0 30px rgba(0,0,0,0.8)',
+                overflowY: 'auto',
+                animation: 'drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Drawer Header */}
               <div
                 style={{
-                  padding: '12px',
-                  backgroundColor: '#121215',
-                  border: '1px solid var(--border)',
-                  borderRadius: '10px',
-                  marginBottom: '18px',
                   display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: '10px',
+                  marginBottom: '20px',
+                  paddingBottom: '14px',
+                  borderBottom: '1px solid var(--border)',
                 }}
               >
-                <div
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '7px',
+                      backgroundColor: 'var(--primary-subtle)',
+                      border: '1px solid var(--primary-border)',
+                      color: 'var(--primary)',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                    }}
+                  >
+                    &forall;
+                  </span>
+                  <span className="font-display" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
+                    Mathify
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowMobileDrawer(false)}
+                  aria-label="Close menu"
                   style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--surface-input)',
-                    border: '1px solid var(--border)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-subtle)',
+                    cursor: 'pointer',
+                    padding: '6px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'var(--primary)',
-                    fontWeight: 700,
-                    fontSize: '15px',
-                    overflow: 'hidden',
-                    flexShrink: 0,
+                    borderRadius: '6px',
                   }}
                 >
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    user?.username?.[0]?.toUpperCase() || 'M'
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user?.username || 'Mathematician'}
+                  <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                    close
+                  </span>
+                </button>
+              </div>
+
+              {/* User Identity Card on Mobile */}
+              {isAuthenticated && (
+                <div
+                  style={{
+                    padding: '12px',
+                    backgroundColor: '#121215',
+                    border: '1px solid var(--border)',
+                    borderRadius: '10px',
+                    marginBottom: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--surface-input)',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      fontSize: '15px',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      user?.username?.[0]?.toUpperCase() || 'M'
+                    )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-                    <span
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
                       style={{
-                        fontSize: '9.5px',
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        padding: '1px 5px',
-                        borderRadius: '3px',
-                        backgroundColor: user?.role === 'host' ? 'rgba(229, 169, 60, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                        color: user?.role === 'host' ? 'var(--primary)' : '#60A5FA',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: 'var(--text)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {user?.role === 'host' ? 'Host' : 'Student'}
-                    </span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
-                      {user?.axiom_points ?? 0} pts
-                    </span>
+                      {user?.username || 'Mathematician'}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                      <span
+                        style={{
+                          fontSize: '9.5px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          backgroundColor:
+                            user?.role === 'host' ? 'rgba(229, 169, 60, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                          color: user?.role === 'host' ? 'var(--primary)' : '#60A5FA',
+                        }}
+                      >
+                        {user?.role === 'host' ? 'Host' : 'Student'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>
+                        {user?.axiom_points ?? 0} pts
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Navigation Links */}
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-              {navLinks.map((link) => {
-                const isActive =
-                  location.pathname === link.path ||
-                  ((link.path === '/studio' || link.path === '/proofs') &&
-                    (location.pathname === '/studio' || location.pathname === '/proofs'));
+              {/* Navigation Links */}
+              <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                {navLinks.map((link) => {
+                  const isActive =
+                    location.pathname === link.path ||
+                    ((link.path === '/studio' || link.path === '/proofs') &&
+                      (location.pathname === '/studio' || location.pathname === '/proofs'));
 
-                return (
+                  return (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      onClick={() => setShowMobileDrawer(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '11px 14px',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        fontSize: '14px',
+                        fontWeight: isActive ? 600 : 500,
+                        backgroundColor: isActive ? 'var(--primary-subtle)' : 'transparent',
+                        color: isActive ? 'var(--primary)' : 'var(--text)',
+                        border: isActive ? '1px solid var(--primary-border)' : '1px solid transparent',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span
+                        className="material-symbols-outlined"
+                        style={{
+                          fontSize: '20px',
+                          color: isActive ? 'var(--primary)' : 'var(--text-subtle)',
+                          fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+                        }}
+                      >
+                        {link.icon}
+                      </span>
+                      <span>{link.label}</span>
+                    </Link>
+                  );
+                })}
+
+                {isAuthenticated && (
                   <Link
-                    key={link.path}
-                    to={link.path}
+                    to="/profile"
                     onClick={() => setShowMobileDrawer(false)}
                     style={{
                       display: 'flex',
@@ -613,108 +696,91 @@ export function Navbar() {
                       borderRadius: '8px',
                       textDecoration: 'none',
                       fontSize: '14px',
-                      fontWeight: isActive ? 600 : 500,
-                      backgroundColor: isActive ? 'var(--primary-subtle)' : 'transparent',
-                      color: isActive ? 'var(--primary)' : 'var(--text)',
-                      border: isActive ? '1px solid var(--primary-border)' : '1px solid transparent',
-                      transition: 'all 0.15s ease',
+                      fontWeight: location.pathname === '/profile' ? 600 : 500,
+                      backgroundColor: location.pathname === '/profile' ? 'var(--primary-subtle)' : 'transparent',
+                      color: location.pathname === '/profile' ? 'var(--primary)' : 'var(--text)',
+                      border: location.pathname === '/profile' ? '1px solid var(--primary-border)' : '1px solid transparent',
+                      marginTop: '4px',
                     }}
                   >
                     <span
                       className="material-symbols-outlined"
                       style={{
                         fontSize: '20px',
-                        color: isActive ? 'var(--primary)' : 'var(--text-subtle)',
-                        fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+                        color: location.pathname === '/profile' ? 'var(--primary)' : 'var(--text-subtle)',
                       }}
                     >
-                      {link.icon}
+                      person
                     </span>
-                    <span>{link.label}</span>
+                    <span>My Profile</span>
                   </Link>
-                );
-              })}
+                )}
+              </nav>
 
-              {isAuthenticated && (
-                <Link
-                  to="/profile"
-                  onClick={() => setShowMobileDrawer(false)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '11px 14px',
-                    borderRadius: '8px',
-                    textDecoration: 'none',
-                    fontSize: '14px',
-                    fontWeight: location.pathname === '/profile' ? 600 : 500,
-                    backgroundColor: location.pathname === '/profile' ? 'var(--primary-subtle)' : 'transparent',
-                    color: location.pathname === '/profile' ? 'var(--primary)' : 'var(--text)',
-                    border: location.pathname === '/profile' ? '1px solid var(--primary-border)' : '1px solid transparent',
-                    marginTop: '4px',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--text-subtle)' }}>
-                    person
-                  </span>
-                  <span>My Profile</span>
-                </Link>
-              )}
-            </nav>
-
-            {/* Bottom Auth Actions */}
-            <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
-              {isAuthenticated ? (
-                <button
-                  onClick={() => {
-                    setShowMobileDrawer(false);
-                    logout();
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '11px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                    color: '#F87171',
-                    fontSize: '13.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
-                  Sign Out
-                </button>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <Link
-                    to="/login"
-                    onClick={() => setShowMobileDrawer(false)}
-                    className="btn-secondary"
-                    style={{ textAlign: 'center', padding: '10px' }}
+              {/* Bottom Auth Actions */}
+              <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => {
+                      setShowMobileDrawer(false);
+                      logout();
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                      color: '#F87171',
+                      fontSize: '13.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
                   >
-                    Sign In
-                  </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setShowMobileDrawer(false)}
-                    className="btn-primary"
-                    style={{ textAlign: 'center', padding: '10px' }}
-                  >
-                    Get Started
-                  </Link>
-                </div>
-              )}
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      logout
+                    </span>
+                    Sign Out
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Link
+                      to="/login"
+                      onClick={() => setShowMobileDrawer(false)}
+                      className="btn-secondary"
+                      style={{ textAlign: 'center', padding: '10px' }}
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setShowMobileDrawer(false)}
+                      className="btn-primary"
+                      style={{ textAlign: 'center', padding: '10px' }}
+                    >
+                      Get Started
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       <style>{`
+        @keyframes drawerFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes drawerSlideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
         @media (min-width: 860px) {
           .desktop-nav {
             display: flex !important;
@@ -729,6 +795,11 @@ export function Navbar() {
           }
           .mobile-menu-btn {
             display: flex !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .hide-on-mobile {
+            display: none !important;
           }
         }
       `}</style>
