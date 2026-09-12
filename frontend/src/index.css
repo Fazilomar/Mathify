@@ -626,63 +626,272 @@ button, input, textarea, select {
   }
 }
 
+/* Publication-Grade KaTeX Math Typography */
+.math-content {
+  font-family: inherit;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.math-content .katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}
+
+.math-block {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  text-align: center;
+}
+
+.math-block .katex-display {
+  margin: 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.math-inline {
+  display: inline;
+  vertical-align: baseline;
+  padding: 0 2px;
+}
+
+.math-paragraph-spacer {
+  height: 12px;
+}
+
+.math-inline-code {
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  color: #E2E8F0;
+}
+
+.math-fallback {
+  font-family: monospace;
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+/* AI Tutor Mobile & Desktop Layout */
+.ai-tutor-sidebar-toggle,
+.ai-tutor-sidebar-close,
+.ai-tutor-sidebar-backdrop {
+  display: none;
+}
+
+/* Groups Page Mobile Segmented Tabs & Controls */
+.groups-mobile-tabs {
+  display: none;
+}
+
+.groups-mobile-back-btn {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  /* Banner on mobile */
+  .groups-banner-card {
+    padding: 14px 16px !important;
+    margin-bottom: 12px !important;
+    border: 1px solid var(--border-subtle) !important;
+  }
+
+  .groups-banner-card h1 {
+    font-size: 18px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .groups-banner-card p {
+    display: none !important;
+  }
+
+  /* Segmented switch for mobile */
+  .groups-mobile-tabs {
+    display: flex !important;
+    gap: 8px;
+    margin-top: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .groups-mobile-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-subtle);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .groups-mobile-tab-btn.active {
+    background: var(--primary-subtle);
+    color: var(--primary);
+    border: 1px solid var(--primary-border);
+  }
+
+  /* Responsive dual-pane to master-detail */
+  .groups-layout {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 120px);
+    height: auto !important;
+  }
+
+  .groups-sidebar-col.mobile-pane-hidden,
+  .groups-chat-col.mobile-pane-hidden {
+    display: none !important;
+  }
+
+  .groups-sidebar-col.mobile-pane-active,
+  .groups-chat-col.mobile-pane-active {
+    display: flex !important;
+    width: 100% !important;
+    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 130px);
+    border: 1px solid var(--border-subtle) !important;
+  }
+
+  .groups-mobile-back-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .groups-chat-col {
+    padding: 14px 14px !important;
+  }
+}
+
 @media (max-width: 768px) {
+  /* AI Tutor: Uncluttered fluid layout, no suffocating glass card */
   .ai-tutor-shell {
-    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 42px) !important;
-    min-height: 460px !important;
+    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 16px) !important;
+    min-height: 480px !important;
+    width: 100% !important;
   }
 
   .ai-tutor-layout {
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    position: relative !important;
+    height: 100% !important;
+    display: flex !important;
     flex-direction: column !important;
   }
 
+  /* Off-canvas sessions drawer on mobile */
   .ai-tutor-sidebar {
-    width: 100% !important;
-    height: auto;
-    max-height: 156px;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border);
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 290px !important;
+    max-width: 86vw !important;
+    height: 100% !important;
+    z-index: 1050 !important;
+    background: #141418 !important;
+    border-right: 1px solid var(--border) !important;
+    border-bottom: none !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.85);
   }
 
-  .ai-tutor-sidebar > div:last-child {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 8px 12px !important;
+  .ai-tutor-sidebar.open {
+    transform: translateX(0) !important;
   }
 
-  .ai-tutor-sidebar > div:last-child > div {
-    display: flex;
-    gap: 8px;
+  .ai-tutor-sidebar-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.7) !important;
+    z-index: 1040 !important;
+    backdrop-filter: blur(4px);
   }
 
-  .ai-tutor-sidebar > div:last-child p {
-    display: none;
+  .ai-tutor-sidebar-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
-  .ai-tutor-sidebar > div:last-child button {
-    flex: 0 0 180px;
-    width: 180px !important;
-    margin-bottom: 0 !important;
+  .ai-tutor-session-pill {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .ai-tutor-sidebar-close {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
   }
 
   .ai-tutor-chat {
+    flex: 1;
     min-height: 0;
+    height: 100%;
   }
 
   .ai-tutor-chat-header {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 14px !important;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 10px 12px !important;
   }
 
   .ai-tutor-chat-header > div:first-child {
     min-width: 0;
-    flex: 1 1 220px;
+    flex: 1 1 auto;
+    overflow: hidden;
   }
 
   .ai-tutor-chat-header h2 {
+    font-size: 13.5px !important;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -690,16 +899,19 @@ button, input, textarea, select {
 
   .ai-tutor-messages {
     min-height: 0;
-    padding: 16px 12px !important;
+    padding: 14px 12px !important;
+    gap: 12px !important;
   }
 
   .ai-tutor-prompts {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
   }
 
   .ai-tutor-message-bubble {
-    max-width: 100% !important;
+    max-width: 92% !important;
     padding: 12px 14px !important;
+    font-size: 13.5px;
   }
 
   .ai-tutor-composer {
@@ -707,11 +919,16 @@ button, input, textarea, select {
   }
 
   .ai-tutor-input-row {
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center;
   }
 
   .ai-tutor-input-row .btn-primary {
-    width: 100%;
+    width: auto !important;
+    padding: 10px 18px !important;
+    flex-shrink: 0;
   }
 }
 

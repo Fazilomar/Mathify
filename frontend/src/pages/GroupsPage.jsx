@@ -4,6 +4,7 @@ import { API } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
 import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
+import MathRenderer from '../components/common/MathRenderer';
 
 export function GroupsPage() {
   const { user, isAuthenticated } = useAuth();
@@ -13,6 +14,7 @@ export function GroupsPage() {
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [roomFilter, setRoomFilter] = useState('');
+  const [mobileTab, setMobileTab] = useState('chat'); // 'rooms' | 'chat'
   const [showCallModal, setShowCallModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -419,7 +421,7 @@ export function GroupsPage() {
     <div style={{ width: '100%' }}>
       {/* Header Banner */}
       <div
-        className="card"
+        className="card groups-banner-card"
         style={{
           padding: '24px 32px',
           marginBottom: '20px',
@@ -452,12 +454,35 @@ export function GroupsPage() {
             </div>
           </div>
         </div>
+
+        {/* Mobile View Switcher */}
+        <div className="groups-mobile-tabs">
+          <button
+            type="button"
+            className={`groups-mobile-tab-btn ${mobileTab === 'rooms' ? 'active' : ''}`}
+            onClick={() => setMobileTab('rooms')}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>meeting_room</span>
+            <span>Study Rooms ({filteredGroups.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`groups-mobile-tab-btn ${mobileTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setMobileTab('chat')}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>forum</span>
+            <span>{activeGroup ? activeGroup.name : 'Discussion'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Dual-Pane Studio Layout */}
       <div className="groups-layout">
         {/* Left Column: Active Rooms Directory */}
-        <div className="card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D' }}>
+        <div
+          className={`groups-sidebar-col card ${mobileTab === 'rooms' ? 'mobile-pane-active' : 'mobile-pane-hidden'}`}
+          style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D' }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Active Study Rooms</h2>
             <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{filteredGroups.length} rooms</span>
@@ -495,7 +520,10 @@ export function GroupsPage() {
                 return (
                   <div
                     key={g.id}
-                    onClick={() => setActiveGroup(g)}
+                    onClick={() => {
+                      setActiveGroup(g);
+                      setMobileTab('chat');
+                    }}
                     style={{
                       padding: '14px',
                       borderRadius: '10px',
@@ -514,7 +542,7 @@ export function GroupsPage() {
                       </span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.35 }}>
-                      {g.description || 'General mathematical collaboration & problem solving'}
+                      <MathRenderer content={g.description || 'General mathematical collaboration & problem solving'} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
                       <span>Host: {g.created_by || 'Scholar'}</span>
@@ -539,12 +567,24 @@ export function GroupsPage() {
         </div>
 
         {/* Right Column: Selected Group Live Discussion & Collaboration */}
-        <div className="card" style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#18181D' }}>
+        <div
+          className={`groups-chat-col card ${mobileTab === 'chat' ? 'mobile-pane-active' : 'mobile-pane-hidden'}`}
+          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#18181D' }}
+        >
           {activeGroup ? (
             <>
               <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="groups-mobile-back-btn"
+                      onClick={() => setMobileTab('rooms')}
+                      title="Back to Study Rooms list"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+                      <span>Rooms</span>
+                    </button>
                     <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>{activeGroup.name}</h2>
                     <span className="badge-academic" style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}>
                       {activeGroup.group_type || 'Study Room'}
@@ -555,7 +595,7 @@ export function GroupsPage() {
                     </span>
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {activeGroup.description || 'Active live collaboration thread.'}
+                    <MathRenderer content={activeGroup.description || 'Active live collaboration thread.'} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -892,7 +932,9 @@ export function GroupsPage() {
                           <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>{m.sender}</span>
                           <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
                         </div>
-                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                        <div style={{ color: 'var(--text)', marginTop: '2px' }}>
+                          <MathRenderer content={m.text} />
+                        </div>
                         {m.status === 'sending' && (
                           <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
                         )}

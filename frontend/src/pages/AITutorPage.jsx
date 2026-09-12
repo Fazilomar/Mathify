@@ -209,9 +209,17 @@ export function AITutorPage() {
           backgroundColor: '#16161B',
         }}
       >
+        {/* Backdrop for mobile drawer */}
+        {sidebarOpen && (
+          <div
+            className="ai-tutor-sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sessions Sidebar */}
         <aside
-          className="ai-tutor-sidebar"
+          className={`ai-tutor-sidebar ${sidebarOpen ? 'open' : ''}`}
           style={{
             width: '280px',
             borderRight: '1px solid var(--border)',
@@ -241,14 +249,32 @@ export function AITutorPage() {
                 {sessions.length} recorded
               </span>
             </div>
-            <button
-              onClick={createNewSession}
-              className="btn-primary"
-              style={{ padding: '5px 11px', fontSize: '12px', borderRadius: '6px' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-              New
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={createNewSession}
+                className="btn-primary"
+                style={{ padding: '5px 11px', fontSize: '12px', borderRadius: '6px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+                New
+              </button>
+              <button
+                type="button"
+                className="ai-tutor-sidebar-close"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close sessions"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-subtle)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'none',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
           </div>
 
           {/* Sessions List or Sample Discussions */}
@@ -335,6 +361,20 @@ export function AITutorPage() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                className="ai-tutor-sidebar-toggle"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                title="Toggle Research Sessions"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>history</span>
+                <span>Sessions</span>
+                {sessions.length > 0 && (
+                  <span className="ai-tutor-session-pill">
+                    {sessions.length}
+                  </span>
+                )}
+              </button>
               <div
                 style={{
                   width: '32px',
@@ -346,6 +386,7 @@ export function AITutorPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>smart_toy</span>
