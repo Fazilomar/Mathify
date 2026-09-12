@@ -14,12 +14,13 @@ class GroupSerializer(serializers.ModelSerializer):
     created_by = serializers.StringRelatedField(read_only=True)
     member_count = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
+    active_meeting = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
         fields = [
             'id', 'name', 'description', 'group_type', 'avatar',
-            'created_by', 'is_private', 'member_count', 'is_member', 'created_at',
+            'created_by', 'is_private', 'member_count', 'is_member', 'active_meeting', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
 
@@ -31,6 +32,19 @@ class GroupSerializer(serializers.ModelSerializer):
         if request and request.user and request.user.is_authenticated:
             return obj.memberships.filter(user=request.user).exists()
         return False
+
+    def get_active_meeting(self, obj):
+        active = obj.calls.filter(status=Call.STATUS_ACTIVE).order_by('-started_at').first()
+        if active:
+            return {
+                'id': active.id,
+                'meeting_code': active.meeting_code,
+                'title': active.title,
+                'initiator': active.initiator.username,
+                'participants_count': active.participants.count(),
+                'started_at': active.started_at,
+            }
+        return None
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -45,16 +59,18 @@ class MessageSerializer(serializers.ModelSerializer):
 class CallSerializer(serializers.ModelSerializer):
     initiator = serializers.StringRelatedField(read_only=True)
     initiator_username = serializers.CharField(source='initiator.username', read_only=True)
+    group_name = serializers.CharField(source='group.name', read_only=True)
     participants = serializers.SlugRelatedField(many=True, read_only=True, slug_field='username')
     participants_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Call
         fields = [
-            'id', 'initiator', 'initiator_username', 'group', 'status',
+            'id', 'initiator', 'initiator_username', 'group', 'group_name', 'title',
+            'meeting_code', 'scheduled_for', 'description', 'is_instant', 'status',
             'participants', 'participants_count', 'started_at', 'ended_at', 'created_at'
         ]
-        read_only_fields = ['id', 'initiator', 'created_at']
+        read_only_fields = ['id', 'initiator', 'meeting_code', 'created_at']
 
     def get_participants_count(self, obj):
         return obj.participants.count()

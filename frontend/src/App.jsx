@@ -16,6 +16,7 @@ import CompetitionsPage from './pages/CompetitionsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import MeetPage from './pages/MeetPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -28,24 +29,19 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Mathify Caught Error:', error, errorInfo);
+    console.error('Crash in module:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '60px 20px', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
-          <div style={{ fontSize: '42px', marginBottom: '16px' }}>📐</div>
-          <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', marginBottom: '10px' }}>
-            Mathematical Module Render Notice
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
-            A rendering exception occurred while processing this module.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn-primary"
-            style={{ padding: '10px 24px', fontWeight: 600 }}
+        <div style={{ padding: '40px', textAlign: 'center', color: '#EF4444' }}>
+          <h2>Something went wrong in this module.</h2>
+          <p style={{ color: 'var(--text-muted)' }}>{this.state.error?.message || 'Unknown runtime error'}</p>
+          <button 
+            onClick={() => this.setState({ hasError: false })}
+            className="btn-primary" 
+            style={{ marginTop: '16px' }}
           >
             Reload Module
           </button>
@@ -74,6 +70,7 @@ export function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/groups" element={<GroupsPage />} />
+            <Route path="/meet/:meetingCode" element={<MeetPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />

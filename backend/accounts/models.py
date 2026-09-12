@@ -54,6 +54,14 @@ class Profile(models.Model):
     year_of_study = models.PositiveSmallIntegerField(
         choices=YEAR_CHOICES, null=True, blank=True
     )
+    institution = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="University, School, or Organization (e.g. MIT, Math Club)"
+    )
+    designation = models.CharField(
+        max_length=100, blank=True, default='',
+        help_text="e.g. Lecturer, Competition Organizer, Seminar Host, Club President"
+    )
     axiom_points = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

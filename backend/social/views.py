@@ -204,6 +204,77 @@ class GroupViewSet(viewsets.ModelViewSet):
         except Exception:
             return Response([])
 
+    @action(detail=True, methods=['get', 'post'])
+    def meetings(self, request, pk=None):
+        import uuid
+        from django.utils import timezone
+        from django.db.models import Q
+        group = self.get_object()
+
+        if request.method == 'GET':
+            calls = group.calls.filter(
+                Q(status=Call.STATUS_ACTIVE) | Q(status=Call.STATUS_PENDING)
+            ).order_by('-created_at')[:20]
+            return Response(CallSerializer(calls, many=True).data)
+
+        # POST: create instant or scheduled meeting
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        title = request.data.get('title', '').strip() or f"{group.name} Seminar"
+        description = request.data.get('description', '').strip()
+        scheduled_for_raw = request.data.get('scheduled_for')
+        is_instant = request.data.get('is_instant', True)
+        if isinstance(is_instant, str):
+            is_instant = is_instant.lower() in ('true', '1', 'yes')
+
+        scheduled_for = None
+        if scheduled_for_raw:
+            try:
+                from django.utils.dateparse import parse_datetime
+                scheduled_for = parse_datetime(scheduled_for_raw)
+            except Exception:
+                scheduled_for = None
+
+        unique_suffix = uuid.uuid4().hex[:6]
+        meeting_code = f"mtf-{unique_suffix[:3]}-{unique_suffix[3:]}"
+
+        existing_active = group.calls.filter(status=Call.STATUS_ACTIVE).first()
+        if is_instant and existing_active:
+            existing_active.participants.add(request.user)
+            return Response(CallSerializer(existing_active).data)
+
+        status_val = Call.STATUS_ACTIVE if is_instant else Call.STATUS_PENDING
+        started_at_val = timezone.now() if is_instant else None
+
+        call = Call.objects.create(
+            initiator=request.user,
+            group=group,
+            title=title,
+            description=description,
+            meeting_code=meeting_code,
+            is_instant=is_instant,
+            status=status_val,
+            started_at=started_at_val,
+            scheduled_for=scheduled_for,
+        )
+        if is_instant:
+            call.participants.add(request.user)
+
+        # Drop meeting card into group chat
+        try:
+            msg_status = "active" if is_instant else "scheduled"
+            sched_str = call.scheduled_for.isoformat() if call.scheduled_for else ""
+            Message.objects.create(
+                sender=request.user,
+                group=group,
+                content=f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{request.user.username}:{msg_status}:{sched_str}"
+            )
+        except Exception:
+            pass
+
+        return Response(CallSerializer(call).data, status=status.HTTP_201_CREATED)
+
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
@@ -288,13 +359,24 @@ class CallViewSet(viewsets.ModelViewSet):
         ).distinct()
 
     def perform_create(self, serializer):
+        import uuid
         from django.utils import timezone
+        unique_suffix = uuid.uuid4().hex[:6]
+        code = f"mtf-{unique_suffix[:3]}-{unique_suffix[3:]}"
         call = serializer.save(
             initiator=self.request.user,
+            meeting_code=code,
             status=Call.STATUS_ACTIVE,
             started_at=timezone.now()
         )
         call.participants.add(self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='by-code/(?P<code>[^/.]+)', permission_classes=[permissions.AllowAny])
+    def by_code(self, request, code=None):
+        call = Call.objects.filter(meeting_code=code).first()
+        if not call:
+            return Response({'detail': 'Meeting not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(CallSerializer(call).data)
 
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
@@ -319,4 +401,22 @@ class CallViewSet(viewsets.ModelViewSet):
             call.status = Call.STATUS_ENDED
             call.ended_at = timezone.now()
             call.save()
+        return Response(CallSerializer(call).data)
+
+    @action(detail=True, methods=['post'])
+    def end(self, request, pk=None):
+        from django.utils import timezone
+        call = self.get_object()
+        call.status = Call.STATUS_ENDED
+        call.ended_at = timezone.now()
+        call.save()
+        if call.group:
+            try:
+                Message.objects.create(
+                    sender=request.user,
+                    group=call.group,
+                    content=f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{request.user.username}:ended:"
+                )
+            except Exception:
+                pass
         return Response(CallSerializer(call).data)

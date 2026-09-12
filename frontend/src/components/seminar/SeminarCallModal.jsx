@@ -10,14 +10,20 @@ const ICE_SERVERS = {
   ],
 };
 
-export function SeminarCallModal({ group, onClose }) {
+export function SeminarCallModal({ group, meeting, onClose, initialPreJoin = true }) {
   const { user } = useAuth();
+  const [isPreJoin, setIsPreJoin] = useState(initialPreJoin);
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [mediaError, setMediaError] = useState(null);
   const [isSpeakingLocal, setIsSpeakingLocal] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0); // 0 to 100 for green room audio meter
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const meetingCode = meeting?.meeting_code || `mtf-${group?.id || 'meet'}`;
+  const meetingTitle = meeting?.title || `${group?.name || 'Academic'} Seminar`;
 
   const [participants, setParticipants] = useState([
     { id: user?.id || 1, name: user?.username || 'You', isMe: true, isSpeaking: false, role: 'Scholar' },
@@ -30,6 +36,7 @@ export function SeminarCallModal({ group, onClose }) {
   const screenTrackRef = useRef(null);
   const screenAudioTrackRef = useRef(null);
   const localVideoRef = useRef(null);
+  const preJoinVideoRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const animFrameRef = useRef(null);
@@ -66,6 +73,9 @@ export function SeminarCallModal({ group, onClose }) {
         localStreamRef.current = stream;
         cameraTrackRef.current = stream.getVideoTracks()[0] || null;
 
+        if (preJoinVideoRef.current && cameraTrackRef.current) {
+          preJoinVideoRef.current.srcObject = stream;
+        }
         if (localVideoRef.current && cameraTrackRef.current) {
           localVideoRef.current.srcObject = stream;
         }
@@ -107,14 +117,17 @@ export function SeminarCallModal({ group, onClose }) {
     };
   }, []);
 
+  // Sync video elements when cam/screen state or prejoin state changes
   useEffect(() => {
-    if (localVideoRef.current && localStreamRef.current) {
+    if (isPreJoin && preJoinVideoRef.current && localStreamRef.current) {
+      preJoinVideoRef.current.srcObject = localStreamRef.current;
+    } else if (!isPreJoin && localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
-  }, [camEnabled, screenSharing]);
+  }, [isPreJoin, camEnabled, screenSharing]);
 
   // -------------------------------------------------------------
-  // 2. Real Voice Activity & Speaking Detection
+  // 2. Real Voice Activity & Speaking Detection + Volume Meter
   // -------------------------------------------------------------
   const setupAudioAnalyser = (stream) => {
     const audioTrack = stream.getAudioTracks()[0];
@@ -143,6 +156,7 @@ export function SeminarCallModal({ group, onClose }) {
         }
         const avg = sum / dataArray.length;
         setIsSpeakingLocal(avg > 18);
+        setAudioLevel(Math.min(100, Math.round((avg / 80) * 100)));
         animFrameRef.current = requestAnimationFrame(checkVolume);
       };
 
@@ -178,17 +192,15 @@ export function SeminarCallModal({ group, onClose }) {
       }
       delete peerConnectionsRef.current[peerUsername];
     }
-    if (isMountedRef.current) {
-      setRemoteStreams((prev) => {
-        if (!(peerUsername in prev)) return prev;
-        const next = { ...prev };
-        delete next[peerUsername];
-        return next;
-      });
-    }
+    setRemoteStreams((prev) => {
+      if (!prev[peerUsername]) return prev;
+      const next = { ...prev };
+      delete next[peerUsername];
+      return next;
+    });
   }, []);
 
-  const getOrCreatePeerConnection = (peerUsername) => {
+  const getOrCreatePeerConnection = useCallback((peerUsername) => {
     if (peerConnectionsRef.current[peerUsername]) {
       return peerConnectionsRef.current[peerUsername];
     }
@@ -209,33 +221,32 @@ export function SeminarCallModal({ group, onClose }) {
     };
 
     pc.ontrack = (event) => {
-      const remoteStream = event.streams[0] || new MediaStream([event.track]);
-      if (isMountedRef.current) {
+      const [stream] = event.streams;
+      if (stream) {
         setRemoteStreams((prev) => ({
           ...prev,
-          [peerUsername]: remoteStream,
+          [peerUsername]: stream,
         }));
       }
     };
 
     pc.onconnectionstatechange = () => {
-      if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         closeAndRemovePeer(peerUsername);
       }
     };
 
     return pc;
-  };
+  }, [closeAndRemovePeer]);
 
-  // Synchronize participants & establish peer connections
-  const syncCall = useCallback(async () => {
-    if (!group?.id) return;
+  // Sync participants list with backend
+  const syncCallParticipants = useCallback(async () => {
+    if (!group?.id || isPreJoin) return;
     try {
-      const res = await API.get(`/api/social/groups/${group.id}/current_call/`);
-      if (!isMountedRef.current) return;
+      const res = await API.get(`/api/social/groups/${group.id}/call/`);
       if (res.ok) {
         const data = await res.json();
-        if (data && Array.isArray(data.participants)) {
+        if (data && data.participants) {
           const currentUsername = user?.username || 'You';
           const list = data.participants.map((uname, idx) => ({
             id: idx + 1,
@@ -251,7 +262,6 @@ export function SeminarCallModal({ group, onClose }) {
 
           if (isMountedRef.current) setParticipants(list);
 
-          // Close and clean up peers who left the call
           const currentRemoteUsernames = new Set(
             data.participants.filter((u) => u !== currentUsername)
           );
@@ -278,11 +288,11 @@ export function SeminarCallModal({ group, onClose }) {
         }
       }
     } catch { }
-  }, [group?.id, user?.username, closeAndRemovePeer]);
+  }, [group?.id, user?.username, isPreJoin, closeAndRemovePeer, getOrCreatePeerConnection]);
 
   // Poll for incoming WebRTC signals
   const pollSignals = useCallback(async () => {
-    if (!group?.id) return;
+    if (!group?.id || isPreJoin) return;
     try {
       const url = `/api/social/groups/${group.id}/call_signals/?since_id=${lastSignalIdRef.current}`;
       const res = await API.get(url);
@@ -316,118 +326,127 @@ export function SeminarCallModal({ group, onClose }) {
               } catch (e) {
                 console.warn('Error adding ICE candidate:', e);
               }
+            } else if (sig.type === 'join') {
+              setParticipants((prev) => {
+                if (prev.some((p) => p.name === sender)) return prev;
+                return [...prev, { id: Date.now(), name: sender, isMe: false, isSpeaking: false, role: 'Scholar' }];
+              });
+              if (user?.username && user.username > sender) {
+                pc.createOffer()
+                  .then((offer) => pc.setLocalDescription(offer))
+                  .then(() => sendSignal(sender, 'offer', pc.localDescription))
+                  .catch((e) => console.warn('Offer error:', e));
+              }
+            } else if (sig.type === 'leave') {
+              closeAndRemovePeer(sender);
+              setParticipants((prev) => prev.filter((p) => p.name !== sender));
             }
           }
         }
       }
     } catch { }
-  }, [group?.id, user?.username]);
+  }, [group?.id, user?.username, isPreJoin, closeAndRemovePeer, getOrCreatePeerConnection]);
 
-  // Call lifecycle & periodic polling
+  // Activate signaling loop only once user enters the conference (isPreJoin === false)
   useEffect(() => {
+    if (isPreJoin) return;
+
+    if (group?.id) {
+      API.post(`/api/social/groups/${group.id}/join_call/`, {}).catch(() => { });
+      sendSignal(null, 'join', { username: user?.username });
+    }
+
+    syncCallParticipants();
+    pollSignals();
+
+    const syncInterval = setInterval(syncCallParticipants, 4000);
+    const signalInterval = setInterval(pollSignals, 1500);
+
+    return () => {
+      clearInterval(syncInterval);
+      clearInterval(signalInterval);
+      if (group?.id && user?.username) {
+        sendSignal(null, 'leave', { username: user.username });
+        API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
+      }
+      Object.values(peerConnectionsRef.current).forEach((pc) => {
+        try { pc.close(); } catch { }
+      });
+      peerConnectionsRef.current = {};
+    };
+  }, [isPreJoin, group?.id, user?.username]);
+
+  // Timer for call elapsed seconds
+  useEffect(() => {
+    if (isPreJoin) return;
     const timer = setInterval(() => {
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
-
-    if (group?.id) {
-      API.post(`/api/social/groups/${group.id}/current_call/`, {})
-        .then(() => syncCall())
-        .catch(() => { });
-    }
-
-    const pollSync = setInterval(syncCall, 3500);
-    const pollSig = setInterval(pollSignals, 1200);
-
-    return () => {
-      clearInterval(timer);
-      clearInterval(pollSync);
-      clearInterval(pollSig);
-
-      Object.values(peerConnectionsRef.current).forEach((pc) => pc.close());
-      peerConnectionsRef.current = {};
-
-      if (group?.id) {
-        API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
-      }
-    };
-  }, [group?.id, syncCall, pollSignals]);
+    return () => clearInterval(timer);
+  }, [isPreJoin]);
 
   // -------------------------------------------------------------
-  // 4. Hardware Controls (Mic, Cam, Screen Share)
+  // 4. Hardware Toggles (Mic, Camera, Screen Share)
   // -------------------------------------------------------------
   const handleToggleMic = () => {
-    if (!localStreamRef.current) return;
-    const audioTrack = localStreamRef.current.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !micEnabled;
-      setMicEnabled(!micEnabled);
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !micEnabled;
+        setMicEnabled(audioTrack.enabled);
+      }
     }
   };
 
-  const handleToggleCam = async () => {
-    if (!localStreamRef.current) return;
-    const videoTrack = localStreamRef.current.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !camEnabled;
-      setCamEnabled(!camEnabled);
-    } else if (!camEnabled) {
-      try {
-        const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const newTrack = vStream.getVideoTracks()[0];
-        localStreamRef.current.addTrack(newTrack);
-        cameraTrackRef.current = newTrack;
-        setCamEnabled(true);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
-        }
-        Object.values(peerConnectionsRef.current).forEach((pc) => {
-          pc.addTrack(newTrack, localStreamRef.current);
-        });
-      } catch {
-        alert('Could not enable camera. Verify camera device permissions.');
+  const handleToggleCam = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !camEnabled;
+        setCamEnabled(videoTrack.enabled);
       }
     }
   };
 
   const handleToggleScreenShare = async () => {
-    if (screenSharing) {
-      if (screenTrackRef.current) {
-        screenTrackRef.current.stop();
-        screenTrackRef.current = null;
-      }
-      if (screenAudioTrackRef.current) {
-        screenAudioTrackRef.current.stop();
-        screenAudioTrackRef.current = null;
-      }
-      if (cameraTrackRef.current) {
-        replaceVideoTrack(cameraTrackRef.current);
-      }
-      setScreenSharing(false);
-    } else {
+    if (!screenSharing) {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        const sTrack = screenStream.getVideoTracks()[0];
-        screenTrackRef.current = sTrack;
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
 
-        const sAudioTrack = screenStream.getAudioTracks()[0] || null;
-        screenAudioTrackRef.current = sAudioTrack;
+        const newVideoTrack = screenStream.getVideoTracks()[0];
+        screenTrackRef.current = newVideoTrack;
+        screenAudioTrackRef.current = screenStream.getAudioTracks()[0] || null;
 
-        sTrack.onended = () => {
-          if (screenAudioTrackRef.current) {
-            screenAudioTrackRef.current.stop();
-            screenAudioTrackRef.current = null;
-          }
-          if (cameraTrackRef.current) {
-            replaceVideoTrack(cameraTrackRef.current);
-          }
-          setScreenSharing(false);
-        };
-
-        replaceVideoTrack(sTrack);
+        replaceVideoTrack(newVideoTrack);
         setScreenSharing(true);
+
+        newVideoTrack.onended = () => {
+          stopScreenShare();
+        };
       } catch (err) {
-        console.warn('Screen share cancelled or failed:', err);
+        console.warn('Screen share canceled or denied:', err);
       }
+    } else {
+      stopScreenShare();
+    }
+  };
+
+  const stopScreenShare = () => {
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+      screenTrackRef.current = null;
+    }
+    if (screenAudioTrackRef.current) {
+      screenAudioTrackRef.current.stop();
+      screenAudioTrackRef.current = null;
+    }
+    setScreenSharing(false);
+
+    if (cameraTrackRef.current) {
+      replaceVideoTrack(cameraTrackRef.current);
     }
   };
 
@@ -448,11 +467,27 @@ export function SeminarCallModal({ group, onClose }) {
     }
   };
 
+  const handleJoinLive = (startMuted = false) => {
+    if (startMuted && micEnabled) {
+      handleToggleMic();
+    }
+    setIsPreJoin(false);
+  };
+
   const handleEndCall = () => {
     if (group?.id) {
       API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
     }
     onClose();
+  };
+
+  const handleCopyLink = () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${origin}/meet/${meetingCode}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2400);
+    });
   };
 
   const formatTime = (secs) => {
@@ -466,405 +501,669 @@ export function SeminarCallModal({ group, onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(10, 10, 14, 0.92)',
+        backgroundColor: 'rgba(10, 10, 14, 0.94)',
         backdropFilter: 'blur(12px)',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
+        padding: '24px 16px',
       }}
     >
       <div
         className="card"
         style={{
           width: '100%',
-          maxWidth: '960px',
-          height: '86vh',
-          maxHeight: '760px',
+          maxWidth: isPreJoin ? '760px' : '1020px',
+          height: isPreJoin ? 'auto' : '88vh',
+          maxHeight: isPreJoin ? '680px' : '800px',
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: '#16161B',
           border: '1px solid var(--border)',
           borderRadius: '16px',
           overflow: 'hidden',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.8)',
+          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.85)',
+          transition: 'max-width 0.3s ease',
         }}
       >
-        <div
-          style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            backgroundColor: '#141418',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span
-              style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: '#EF4444',
-                boxShadow: '0 0 8px #EF4444',
-                animation: 'pulse 1.5s infinite',
-              }}
-            />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '15.5px', fontWeight: 700 }}>
-                  {group?.name || 'Mathematical Seminar Call'}
-                </h3>
-                <span className="badge-academic" style={{ fontSize: '10.5px', padding: '2px 8px' }}>
-                  Live WebRTC P2P
-                </span>
+        {/* ========================================================= */}
+        {/* GOOGLE MEET STYLE GREEN ROOM / PRE-JOIN SCREEN           */}
+        {/* ========================================================= */}
+        {isPreJoin ? (
+          <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--primary)' }}>
+                    videocam
+                  </span>
+                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>
+                    {meetingTitle}
+                  </h2>
+                </div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>Code: <strong style={{ color: 'var(--primary)' }}>{meetingCode}</strong></span>
+                  <span>•</span>
+                  <span>{group?.name}</span>
+                </div>
               </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                Room Duration: {formatTime(elapsedSeconds)} &bull; {participants.length} connected
-              </div>
-            </div>
-          </div>
 
-          <button
-            onClick={handleEndCall}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-subtle)',
-              cursor: 'pointer',
-              padding: '6px',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
-          </button>
-        </div>
-
-        {mediaError && (
-          <div
-            style={{
-              padding: '8px 20px',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              borderBottom: '1px solid rgba(239, 68, 68, 0.25)',
-              color: '#F87171',
-              fontSize: '12.5px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>error</span>
-            <span>{mediaError}</span>
-          </div>
-        )}
-
-        <div
-          style={{
-            flex: 1,
-            padding: '20px',
-            display: 'grid',
-            gridTemplateColumns: participants.length > 2 ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '16px',
-            overflowY: 'auto',
-            backgroundColor: '#121216',
-          }}
-        >
-          {participants.map((p) => {
-            const isMe = p.isMe;
-            const hasRemoteStream = !isMe && remoteStreams[p.name];
-            const isSpeaking = isMe ? isSpeakingLocal && micEnabled : p.isSpeaking;
-
-            return (
-              <div
-                key={p.id || p.name}
+              <button
+                onClick={onClose}
                 style={{
-                  position: 'relative',
-                  borderRadius: '12px',
-                  backgroundColor: '#181822',
-                  border: isSpeaking ? '2px solid var(--primary)' : '1px solid var(--border)',
-                  boxShadow: isSpeaking ? '0 0 18px rgba(229, 169, 60, 0.3)' : 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                  minHeight: '220px',
-                  transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-subtle)',
+                  cursor: 'pointer',
+                  padding: '6px',
                 }}
               >
-                {isMe ? (
-                  camEnabled ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>close</span>
+              </button>
+            </div>
+
+            {mediaError && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#FCA5A5',
+                  fontSize: '12.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>error</span>
+                <span>{mediaError}</span>
+              </div>
+            )}
+
+            {/* Pre-Join Grid: Camera Preview & Actions */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'center' }}>
+              {/* Camera Preview Tile */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '16/9',
+                  backgroundColor: '#09090D',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: isSpeakingLocal ? '2px solid #22C55E' : '1px solid var(--border)',
+                  boxShadow: isSpeakingLocal ? '0 0 16px rgba(34, 197, 94, 0.35)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <video
+                  ref={preJoinVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: 'scaleX(-1)',
+                    display: camEnabled ? 'block' : 'none',
+                  }}
+                />
+
+                {!camEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                    <div
                       style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        transform: screenSharing ? 'none' : 'scaleX(-1)',
+                        width: '76px',
+                        height: '76px',
+                        borderRadius: '50%',
+                        backgroundColor: '#27272A',
+                        color: 'var(--primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '28px',
+                        fontWeight: 700,
+                        border: '2px solid rgba(229, 169, 60, 0.3)',
                       }}
-                    />
-                  ) : null
-                ) : (
-                  hasRemoteStream ? (
-                    <video
-                      ref={(el) => {
-                        if (el && remoteStreams[p.name] && el.srcObject !== remoteStreams[p.name]) {
-                          el.srcObject = remoteStreams[p.name];
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                    />
-                  ) : null
+                    >
+                      {user?.username ? user.username.slice(0, 2).toUpperCase() : 'ME'}
+                    </div>
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-subtle)' }}>Camera is off</span>
+                  </div>
                 )}
 
-                {((isMe && !camEnabled) || (!isMe && !hasRemoteStream)) && (
-                  <div
+                {/* Hardware Toggle Overlay */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    zIndex: 2,
+                    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                    backdropFilter: 'blur(6px)',
+                    padding: '6px 14px',
+                    borderRadius: '24px',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={handleToggleMic}
                     style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      backgroundColor: micEnabled ? '#22C55E' : '#EF4444',
+                      color: '#FFF',
+                      cursor: 'pointer',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      zIndex: 2,
+                      transition: 'all 0.15s ease',
+                    }}
+                    title={micEnabled ? 'Mute' : 'Unmute'}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>
+                      {micEnabled ? 'mic' : 'mic_off'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleCam}
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '50%',
+                      border: 'none',
+                      backgroundColor: camEnabled ? '#3B82F6' : '#EF4444',
+                      color: '#FFF',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.15s ease',
+                    }}
+                    title={camEnabled ? 'Turn Camera Off' : 'Turn Camera On'}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>
+                      {camEnabled ? 'videocam' : 'videocam_off'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Audio Level Visualizer Bar */}
+                {micEnabled && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      height: '6px',
+                      width: '54px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      overflow: 'hidden',
                     }}
                   >
                     <div
                       style={{
-                        width: '68px',
-                        height: '68px',
-                        borderRadius: '50%',
-                        backgroundColor: isMe ? 'var(--primary-subtle)' : '#262632',
-                        border: '2px solid var(--border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '24px',
-                        fontWeight: 700,
-                        color: isMe ? 'var(--primary)' : 'var(--text-muted)',
-                        fontFamily: 'serif',
-                        marginBottom: '10px',
+                        height: '100%',
+                        width: `${audioLevel}%`,
+                        backgroundColor: '#22C55E',
+                        transition: 'width 0.1s ease',
                       }}
-                    >
-                      {p.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text)' }}>
-                      {p.name} {isMe && '(You)'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      {p.role} &bull; {isMe ? (micEnabled ? 'Audio Active' : 'Muted') : 'Connected'}
-                    </div>
+                    />
                   </div>
                 )}
+              </div>
 
-                {isSpeaking && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      display: 'flex',
-                      gap: '3px',
-                      alignItems: 'flex-end',
-                      height: '16px',
-                      zIndex: 4,
-                    }}
-                  >
-                    {[12, 16, 10, 14].map((h, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          width: '3px',
-                          height: `${h}px`,
-                          backgroundColor: 'var(--primary)',
-                          borderRadius: '1px',
-                          animation: `pulse ${0.6 + i * 0.2}s infinite alternate`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+              {/* Ready Card & Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>
+                    Ready to join?
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                    Check your audio and video before entering the seminar. Other scholars in the room will see you once you click join.
+                  </p>
+                </div>
 
+                {/* Copy Link Row */}
                 <div
                   style={{
-                    position: 'absolute',
-                    bottom: '10px',
-                    left: '12px',
-                    right: '12px',
                     display: 'flex',
-                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    zIndex: 4,
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid var(--border)',
                   }}
                 >
-                  <span
+                  <span style={{ fontSize: '12px', color: 'var(--text-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    /meet/{meetingCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
                     style={{
-                      fontSize: '11px',
+                      background: 'none',
+                      border: 'none',
+                      color: copiedLink ? '#22C55E' : 'var(--primary)',
+                      fontSize: '12px',
                       fontWeight: 600,
-                      padding: '3px 8px',
-                      borderRadius: '5px',
-                      backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                      backdropFilter: 'blur(4px)',
-                      color: isSpeaking ? 'var(--primary)' : '#E2E8F0',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
                     }}
                   >
-                    {p.name} {isMe ? '(You)' : ''}
-                  </span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>
+                      {copiedLink ? 'check' : 'content_copy'}
+                    </span>
+                    <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                  </button>
+                </div>
 
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {isMe && !micEnabled && (
-                      <span
-                        className="material-symbols-outlined"
-                        style={{
-                          fontSize: '15px',
-                          color: '#EF4444',
-                          backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                          padding: '3px',
-                          borderRadius: '4px',
-                        }}
-                      >
-                        mic_off
-                      </span>
-                    )}
-                    {isMe && !camEnabled && (
-                      <span
-                        className="material-symbols-outlined"
-                        style={{
-                          fontSize: '15px',
-                          color: '#EF4444',
-                          backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                          padding: '3px',
-                          borderRadius: '4px',
-                        }}
-                      >
-                        videocam_off
-                      </span>
-                    )}
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleJoinLive(false)}
+                    className="btn-primary"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>login</span>
+                    <span>Join Now</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleJoinLive(true)}
+                    className="btn-secondary"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      fontSize: '13.5px',
+                      backgroundColor: '#27272A',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>mic_off</span>
+                    <span>Join with Mic Muted</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ========================================================= */
+          /* LIVE ACTIVE WEBRTC CONFERENCE ROOM                        */
+          /* ========================================================= */
+          <>
+            {/* Conference Top Bar */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#141418',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: '#EF4444',
+                    boxShadow: '0 0 8px #EF4444',
+                    animation: 'pulse 1.5s infinite',
+                  }}
+                />
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
+                      {meetingTitle}
+                    </h3>
+                    <span className="badge-academic" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                      WebRTC P2P
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                    Code: <strong style={{ color: 'var(--primary)' }}>{meetingCode}</strong> • {group?.name}
                   </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
 
-        <div
-          style={{
-            padding: '16px 24px',
-            borderTop: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '16px',
-            backgroundColor: '#141418',
-          }}
-        >
-          <button
-            onClick={handleToggleMic}
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--border)',
-              backgroundColor: micEnabled ? '#22222A' : '#7F1D1D',
-              color: micEnabled ? 'var(--text)' : '#F87171',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            title={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-              {micEnabled ? 'mic' : 'mic_off'}
-            </span>
-          </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {/* Copy Link Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: copiedLink ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid var(--border)',
+                    color: copiedLink ? '#22C55E' : 'var(--text)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {copiedLink ? 'check' : 'content_copy'}
+                  </span>
+                  <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                </button>
 
-          <button
-            onClick={handleToggleCam}
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--border)',
-              backgroundColor: camEnabled ? '#22222A' : '#7F1D1D',
-              color: camEnabled ? 'var(--text)' : '#F87171',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            title={camEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-              {camEnabled ? 'videocam' : 'videocam_off'}
-            </span>
-          </button>
+                {/* Call Timer */}
+                <span style={{ fontSize: '12px', color: 'var(--text-subtle)', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatTime(elapsedSeconds)}
+                </span>
+              </div>
+            </div>
 
-          <button
-            onClick={handleToggleScreenShare}
-            style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--border)',
-              backgroundColor: screenSharing ? 'var(--primary-subtle)' : '#22222A',
-              color: screenSharing ? 'var(--primary)' : 'var(--text)',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            title={screenSharing ? 'Stop Sharing Screen' : 'Share Screen'}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-              {screenSharing ? 'stop_screen_share' : 'screen_share'}
-            </span>
-          </button>
+            {/* Video Tile Grid */}
+            <div
+              style={{
+                flex: 1,
+                padding: '16px',
+                overflowY: 'auto',
+                display: 'grid',
+                gridTemplateColumns: participants.length <= 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '14px',
+                alignContent: 'center',
+              }}
+            >
+              {participants.map((p) => {
+                const isLocal = p.isMe;
+                const remoteStream = remoteStreams[p.name];
+                const hasVideo = isLocal ? (camEnabled || screenSharing) : (remoteStream && remoteStream.getVideoTracks().length > 0);
+                const speaking = isLocal ? isSpeakingLocal : p.isSpeaking;
 
-          <button
-            onClick={handleEndCall}
-            style={{
-              padding: '0 20px',
-              height: '46px',
-              borderRadius: '23px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              border: 'none',
-              backgroundColor: '#EF4444',
-              color: '#FFFFFF',
-              fontWeight: 600,
-              fontSize: '13.5px',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
-              transition: 'transform 0.15s ease',
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-              call_end
-            </span>
-            Leave Seminar
-          </button>
-        </div>
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      aspectRatio: '16/9',
+                      backgroundColor: '#0A0A0F',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      border: speaking ? '2.5px solid #22C55E' : '1px solid var(--border)',
+                      boxShadow: speaking ? '0 0 16px rgba(34, 197, 94, 0.4)' : 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'border 0.2s ease',
+                    }}
+                  >
+                    {isLocal ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          transform: screenSharing ? 'none' : 'scaleX(-1)',
+                          display: (camEnabled || screenSharing) ? 'block' : 'none',
+                        }}
+                      />
+                    ) : remoteStream ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        ref={(el) => {
+                          if (el && el.srcObject !== remoteStream) {
+                            el.srcObject = remoteStream;
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : null}
+
+                    {!hasVideo && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: '50%',
+                            backgroundColor: '#27272A',
+                            color: 'var(--primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '22px',
+                            fontWeight: 700,
+                            border: '2px solid rgba(229, 169, 60, 0.3)',
+                          }}
+                        >
+                          {p.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>Camera Off</span>
+                      </div>
+                    )}
+
+                    {/* Participant Info Tag */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        left: '10px',
+                        right: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                          backdropFilter: 'blur(4px)',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: 'var(--text)',
+                        }}
+                      >
+                        {p.name} {isLocal && '(You)'}
+                      </span>
+
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {isLocal && !micEnabled && (
+                          <span
+                            className="material-symbols-outlined"
+                            style={{
+                              fontSize: '15px',
+                              color: '#EF4444',
+                              backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                              padding: '3px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            mic_off
+                          </span>
+                        )}
+                        {!hasVideo && (
+                          <span
+                            className="material-symbols-outlined"
+                            style={{
+                              fontSize: '15px',
+                              color: '#EF4444',
+                              backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                              padding: '3px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            videocam_off
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Conference Bottom Action Bar */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid var(--border)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '16px',
+                backgroundColor: '#141418',
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleToggleMic}
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--border)',
+                  backgroundColor: micEnabled ? '#22222A' : '#7F1D1D',
+                  color: micEnabled ? 'var(--text)' : '#F87171',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {micEnabled ? 'mic' : 'mic_off'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleCam}
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--border)',
+                  backgroundColor: camEnabled ? '#22222A' : '#7F1D1D',
+                  color: camEnabled ? 'var(--text)' : '#F87171',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title={camEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {camEnabled ? 'videocam' : 'videocam_off'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleScreenShare}
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid var(--border)',
+                  backgroundColor: screenSharing ? 'var(--primary-subtle)' : '#22222A',
+                  color: screenSharing ? 'var(--primary)' : 'var(--text)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title={screenSharing ? 'Stop Sharing Screen' : 'Share Screen'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  {screenSharing ? 'stop_screen_share' : 'screen_share'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEndCall}
+                style={{
+                  padding: '0 22px',
+                  height: '46px',
+                  borderRadius: '23px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  border: 'none',
+                  backgroundColor: '#EF4444',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  call_end
+                </span>
+                <span>Leave Seminar</span>
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

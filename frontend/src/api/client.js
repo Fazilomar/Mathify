@@ -1,7 +1,8 @@
-// Centralized API client with JWT automatic refresh and error handling
 export const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://mathify-backend-one.vercel.app' : '');
 
 export const API = {
+  _refreshPromise: null, // Dedupes concurrent refresh calls
+
   getAccess: () => localStorage.getItem('mx_access'),
   getRefresh: () => localStorage.getItem('mx_refresh'),
 
@@ -20,7 +21,9 @@ export const API = {
     const token = this.getAccess();
     if (!token) return null;
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      const base64 = token.split('.')[1];
+      // Handles multi-byte UTF-8 claims safely
+      const payload = JSON.parse(decodeURIComponent(escape(atob(base64))));
       return payload.user_id;
     } catch {
       return null;
@@ -28,23 +31,35 @@ export const API = {
   },
 
   async refresh() {
-    const refresh = this.getRefresh();
-    if (!refresh) return false;
-    try {
-      const res = await fetch(`${API_BASE}/api/token/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        this.setTokens(data.access, data.refresh);
-        return true;
-      }
-    } catch {
-      // network failure
+    if (this._refreshPromise) {
+      return this._refreshPromise;
     }
-    return false;
+
+    this._refreshPromise = (async () => {
+      const refresh = this.getRefresh();
+      if (!refresh) return false;
+      try {
+        const res = await fetch(`${API_BASE}/api/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.setTokens(data.access, data.refresh);
+          return true;
+        }
+      } catch {
+        // network failure
+      }
+      return false;
+    })();
+
+    try {
+      return await this._refreshPromise;
+    } finally {
+      this._refreshPromise = null;
+    }
   },
 
   async req(endpoint, opts = {}) {
@@ -56,24 +71,42 @@ export const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Only set Content-Type to JSON if body is not FormData
-    if (!(opts.body instanceof FormData) && !headers['Content-Type']) {
+    const hasContentType = Object.keys(headers).some(
+      (h) => h.toLowerCase() === 'content-type'
+    );
+    if (!(opts.body instanceof FormData) && !hasContentType) {
       headers['Content-Type'] = 'application/json';
     }
 
     try {
       let res = await fetch(url, { ...opts, headers });
 
-      // If token expired, try automatic refresh once
       if (res.status === 401 && this.getRefresh()) {
         const ok = await this.refresh();
         if (ok) {
           headers['Authorization'] = `Bearer ${this.getAccess()}`;
           res = await fetch(url, { ...opts, headers });
+
+          // If retried request is still 401, clear session and dispatch unauthorized
+          if (res.status === 401) {
+            this.clearTokens();
+            window.dispatchEvent(new Event('auth:unauthorized'));
+          }
         } else {
           this.clearTokens();
           window.dispatchEvent(new Event('auth:unauthorized'));
         }
+      }
+
+      // Surface rate limiting so polling components can back off
+      if (res.status === 429) {
+        const retryAfterHeader = res.headers.get('Retry-After');
+        window.dispatchEvent(new CustomEvent('api:rate-limited', {
+          detail: {
+            endpoint,
+            retryAfter: retryAfterHeader ? parseInt(retryAfterHeader, 10) : null,
+          },
+        }));
       }
 
       return res;

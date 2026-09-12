@@ -103,6 +103,11 @@ class Call(models.Model):
         Group, on_delete=models.CASCADE,
         related_name='calls', null=True, blank=True
     )
+    title = models.CharField(max_length=200, default='Seminar Call', blank=True)
+    meeting_code = models.CharField(max_length=50, blank=True, null=True, unique=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+    description = models.TextField(blank=True, default='')
+    is_instant = models.BooleanField(default=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL, related_name='joined_calls', blank=True
@@ -112,7 +117,7 @@ class Call(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Call by {self.initiator.username} [{self.status}]"
+        return f"{self.title} ({self.meeting_code or 'no-code'}) by {self.initiator.username} [{self.status}]"
 
 
 class CallSignal(models.Model):

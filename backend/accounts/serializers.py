@@ -20,7 +20,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             'id', 'role', 'avatar', 'bio', 'department', 'department_id',
-            'year_of_study', 'axiom_points', 'updated_at',
+            'year_of_study', 'institution', 'designation', 'axiom_points', 'updated_at',
         ]
         read_only_fields = ['axiom_points']
 
@@ -51,10 +51,18 @@ class RegisterSerializer(serializers.ModelSerializer):
     department_id = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(), write_only=True, required=False, allow_null=True
     )
+    department = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    year_of_study = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    institution = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    designation = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    bio = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = CustomUser
-        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'password2', 'role', 'department_id']
+        fields = [
+            'email', 'username', 'first_name', 'last_name', 'password', 'password2',
+            'role', 'department_id', 'department', 'year_of_study', 'institution', 'designation', 'bio',
+        ]
 
     def validate(self, data):
         if data['password'] != data.pop('password2'):
@@ -63,11 +71,35 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         role = validated_data.pop('role', Profile.ROLE_STUDENT)
-        department = validated_data.pop('department_id', None)
+        department_obj = validated_data.pop('department_id', None)
+        dept_name = validated_data.pop('department', None)
+        year_of_study = validated_data.pop('year_of_study', None)
+        institution = validated_data.pop('institution', '').strip()
+        designation = validated_data.pop('designation', '').strip()
+        bio = validated_data.pop('bio', '').strip()
+
+        # If department was given as a string name rather than an ID, match it
+        if not department_obj and dept_name:
+            department_obj = (
+                Department.objects.filter(name__iexact=dept_name).first() or
+                Department.objects.filter(code__iexact=dept_name).first()
+            )
+
         user = CustomUser.objects.create_user(**validated_data)
         profile = user.profile
         profile.role = role
-        if department:
-            profile.department = department
+        if department_obj:
+            profile.department = department_obj
+        if role == Profile.ROLE_STUDENT and year_of_study:
+            profile.year_of_study = year_of_study
+        else:
+            profile.year_of_study = None
+
+        if institution:
+            profile.institution = institution
+        if designation:
+            profile.designation = designation
+        if bio:
+            profile.bio = bio
         profile.save()
         return user

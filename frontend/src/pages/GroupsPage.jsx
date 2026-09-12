@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
+import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
 
 export function GroupsPage() {
   const { user, isAuthenticated } = useAuth();
@@ -14,6 +15,10 @@ export function GroupsPage() {
   const [roomFilter, setRoomFilter] = useState('');
   const [showCallModal, setShowCallModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [activeMeeting, setActiveMeeting] = useState(null);
+  const [meetingDropdownOpen, setMeetingDropdownOpen] = useState(false);
+  const [copiedToast, setCopiedToast] = useState('');
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
@@ -172,9 +177,40 @@ export function GroupsPage() {
     };
   }, [activeGroup?.id]);
 
-  useEffect(() => {
-    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const handleStartInstantMeeting = async () => {
+    if (!activeGroup) return;
+    try {
+      const res = await API.post(`/api/social/groups/${activeGroup.id}/meetings/`, {
+        is_instant: true,
+        title: `${activeGroup.name} Seminar`,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveMeeting(data);
+        setShowCallModal(true);
+        fetchGroups(true);
+      } else {
+        setShowCallModal(true);
+      }
+    } catch (e) {
+      console.warn('Error starting meeting:', e);
+      setShowCallModal(true);
+    }
+  };
+
+  const handleJoinMeeting = (mtg) => {
+    setActiveMeeting(mtg);
+    setShowCallModal(true);
+  };
+
+  const copyMeetingLink = (code) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const link = `${origin}/meet/${code}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedToast('Meeting link copied to clipboard!');
+      setTimeout(() => setCopiedToast(''), 2500);
+    });
+  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -366,10 +402,18 @@ export function GroupsPage() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
                       <span>Host: {g.created_by || 'Scholar'}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>group</span>
-                        {g.member_count || 1} member{g.member_count !== 1 ? 's' : ''}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {g.active_meeting && (
+                          <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#EF4444' }} />
+                            Live
+                          </span>
+                        )}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>group</span>
+                          {g.member_count || 1} member{g.member_count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -398,17 +442,154 @@ export function GroupsPage() {
                     {activeGroup.description || 'Active live collaboration thread.'}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: '12.5px' }} onClick={() => setShowWhiteboardModal(true)}>
                     <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>draw</span>
                     Whiteboard
                   </button>
-                  <button className="btn-primary" style={{ padding: '7px 16px', fontSize: '12.5px' }} onClick={() => setShowCallModal(true)}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
-                    Join Seminar Call
-                  </button>
+
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden' }}>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ padding: '7px 14px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                        onClick={handleStartInstantMeeting}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
+                        Start Meeting
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ padding: '7px 8px', fontSize: '12.5px', borderLeft: '1px solid rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                        onClick={() => setMeetingDropdownOpen((prev) => !prev)}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_drop_down</span>
+                      </button>
+                    </div>
+
+                    {meetingDropdownOpen && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 'calc(100% + 6px)',
+                          backgroundColor: '#1E1E26',
+                          border: '1px solid var(--border)',
+                          borderRadius: '8px',
+                          boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6)',
+                          zIndex: 60,
+                          minWidth: '190px',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          onClick={() => {
+                            setMeetingDropdownOpen(false);
+                            handleStartInstantMeeting();
+                          }}
+                          style={{
+                            padding: '10px 14px',
+                            fontSize: '12.5px',
+                            color: 'var(--text)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>videocam</span>
+                          <span>Start Instant Meeting</span>
+                        </div>
+                        <div
+                          onClick={() => {
+                            setMeetingDropdownOpen(false);
+                            setShowScheduleModal(true);
+                          }}
+                          style={{
+                            padding: '10px 14px',
+                            fontSize: '12.5px',
+                            color: 'var(--text)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>calendar_month</span>
+                          <span>Schedule Seminar</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {((activeGroup && activeGroup.active_meeting) || activeMeeting) && (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: '14px',
+                    marginBottom: '6px',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: '#EF4444',
+                        boxShadow: '0 0 8px #EF4444',
+                        animation: 'pulse 1.5s infinite',
+                      }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                        🔴 Live Seminar: {(activeGroup.active_meeting || activeMeeting).title}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                        Hosted by @{(activeGroup.active_meeting || activeMeeting).initiator || (activeGroup.active_meeting || activeMeeting).initiator_username || 'Host'} • {(activeGroup.active_meeting || activeMeeting).participants_count || 1} connected
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleJoinMeeting(activeGroup.active_meeting || activeMeeting)}
+                      className="btn-primary"
+                      style={{ padding: '6px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>login</span>
+                      Join Meeting
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyMeetingLink((activeGroup.active_meeting || activeMeeting).meeting_code)}
+                      className="btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#27272A', color: 'var(--text)', border: '1px solid var(--border)' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                      Copy Link
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {messages.length === 0 ? (
@@ -422,47 +603,149 @@ export function GroupsPage() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((m) => (
-                    <div
-                      key={m.id}
-                      style={{
-                        padding: '10px 14px',
-                        backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : 'rgba(229, 169, 60, 0.08)',
-                        border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : '1px solid var(--primary-border)',
-                        borderRadius: '8px',
-                        fontSize: '13.5px',
-                        opacity: m.status === 'sending' ? 0.6 : 1,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>{m.sender}</span>
-                        <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
-                      </div>
-                      <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                      {m.status === 'sending' && (
-                        <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
-                      )}
-                      {m.status === 'failed' && (
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#e05c5c' }}>Failed to send</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRetryMessage(m)}
-                            style={{ fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                          >
-                            Retry
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDismissFailed(m.id)}
-                            style={{ fontSize: '11px', color: 'var(--text-subtle)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                          >
-                            Dismiss
-                          </button>
+                  messages.map((m) => {
+                    const isMeetingCard = typeof m.text === 'string' && m.text.startsWith('[MEETING]:');
+                    if (isMeetingCard) {
+                      const parts = m.text.split(':');
+                      const mtgId = parts[1];
+                      const mtgCode = parts[2];
+                      const mtgTitle = parts[3] || 'Academic Seminar';
+                      const mtgHost = parts[4] || m.sender;
+                      const mtgStatus = parts[5] || 'active';
+                      const mtgSched = parts.slice(6).join(':');
+
+                      return (
+                        <div
+                          key={m.id}
+                          style={{
+                            padding: '16px',
+                            borderRadius: '12px',
+                            backgroundColor: '#1B1B22',
+                            border: mtgStatus === 'active' ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                            boxShadow: mtgStatus === 'active' ? '0 4px 20px rgba(229, 169, 60, 0.12)' : 'none',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '8px',
+                                  backgroundColor: mtgStatus === 'active' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(229, 169, 60, 0.15)',
+                                  color: mtgStatus === 'active' ? '#22C55E' : 'var(--primary)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                                  {mtgStatus === 'active' ? 'videocam' : mtgStatus === 'scheduled' ? 'calendar_month' : 'videocam_off'}
+                                </span>
+                              </div>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: 700, color: 'var(--text)' }}>
+                                  {mtgTitle}
+                                </h4>
+                                <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>
+                                  Host: @{mtgHost} • Code: <strong style={{ color: 'var(--primary)' }}>{mtgCode}</strong>
+                                </span>
+                              </div>
+                            </div>
+
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                                backgroundColor: mtgStatus === 'active' ? 'rgba(239, 68, 68, 0.15)' : mtgStatus === 'scheduled' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                color: mtgStatus === 'active' ? '#EF4444' : mtgStatus === 'scheduled' ? '#60A5FA' : 'var(--text-subtle)',
+                                border: mtgStatus === 'active' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border)',
+                              }}
+                            >
+                              {mtgStatus === 'active' ? '🔴 LIVE NOW' : mtgStatus === 'scheduled' ? '📅 SCHEDULED' : 'ENDED'}
+                            </span>
+                          </div>
+
+                          {mtgSched && (
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--primary)' }}>schedule</span>
+                              <span>Scheduled: {new Date(mtgSched).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                            {mtgStatus !== 'ended' && (
+                              <button
+                                type="button"
+                                onClick={() => handleJoinMeeting({ id: mtgId, meeting_code: mtgCode, title: mtgTitle, initiator_username: mtgHost })}
+                                className="btn-primary"
+                                style={{ padding: '6px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>login</span>
+                                <span>{mtgStatus === 'active' ? 'Join Meeting' : 'Open Green Room'}</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => copyMeetingLink(mtgCode)}
+                              className="btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#27272A', color: 'var(--text)', border: '1px solid var(--border)' }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                              <span>Copy Link</span>
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={m.id}
+                        style={{
+                          padding: '10px 14px',
+                          backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : 'rgba(229, 169, 60, 0.08)',
+                          border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : '1px solid var(--primary-border)',
+                          borderRadius: '8px',
+                          fontSize: '13.5px',
+                          opacity: m.status === 'sending' ? 0.6 : 1,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>{m.sender}</span>
+                          <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
+                        </div>
+                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                        {m.status === 'sending' && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
+                        )}
+                        {m.status === 'failed' && (
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                            <span style={{ fontSize: '11px', color: '#e05c5c' }}>Failed to send</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRetryMessage(m)}
+                              style={{ fontSize: '11px', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                            >
+                              Retry
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDismissFailed(m.id)}
+                              style={{ fontSize: '11px', color: 'var(--text-subtle)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
                 <div ref={chatScrollRef} />
               </div>
@@ -588,12 +871,55 @@ export function GroupsPage() {
         </div>
       )}
 
+      {showScheduleModal && activeGroup && (
+        <ScheduleMeetingModal
+          group={activeGroup}
+          onClose={() => setShowScheduleModal(false)}
+          onScheduled={() => {
+            fetchGroups(true);
+          }}
+        />
+      )}
+
       {showCallModal && activeGroup && (
-        <SeminarCallModal group={activeGroup} onClose={() => setShowCallModal(false)} />
+        <SeminarCallModal
+          group={activeGroup}
+          meeting={activeMeeting}
+          initialPreJoin={true}
+          onClose={() => {
+            setShowCallModal(false);
+            setActiveMeeting(null);
+            fetchGroups(true);
+          }}
+        />
       )}
 
       {showWhiteboardModal && activeGroup && (
         <WhiteboardModal group={activeGroup} onClose={() => setShowWhiteboardModal(false)} />
+      )}
+
+      {copiedToast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: 'rgba(34, 197, 94, 0.95)',
+            color: '#FFFFFF',
+            padding: '10px 18px',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: 600,
+            zIndex: 9999,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
+          <span>{copiedToast}</span>
+        </div>
       )}
     </div>
   );
