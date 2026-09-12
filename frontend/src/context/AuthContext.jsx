@@ -59,11 +59,22 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (username, password) => {
-    const res = await API.post('/api/auth/token/', { username, password });
+    const trimmed = (username || '').trim();
+    const res = await API.post('/api/auth/token/', {
+      username: trimmed,
+      email: trimmed,
+      password,
+    });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || err.error || 'Invalid username or password');
+      const msg =
+        err.detail ||
+        err.error ||
+        (Array.isArray(err.email) ? err.email.join(' ') : err.email) ||
+        (Array.isArray(err.username) ? err.username.join(' ') : err.username) ||
+        'Invalid username or password';
+      throw new Error(msg);
     }
 
     const data = await res.json();
@@ -83,8 +94,8 @@ export function AuthProvider({ children }) {
       throw new Error(msg || 'Registration failed');
     }
 
-    // Auto login after registration
-    return login(userData.username, userData.password);
+    // Auto login after registration using email or username
+    return login(userData.email || userData.username, userData.password);
   };
 
   const logout = () => {

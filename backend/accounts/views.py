@@ -15,11 +15,18 @@ import json
 from decouple import config
 import secrets
 
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import CustomUser, Profile, Department
 from .serializers import (
     UserSerializer, RegisterSerializer,
     ProfileSerializer, DepartmentSerializer,
+    EmailOrUsernameTokenObtainPairSerializer,
 )
+
+
+class EmailOrUsernameTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailOrUsernameTokenObtainPairSerializer
+    throttle_scope = 'auth'
 
 
 class RegisterView(generics.CreateAPIView):
