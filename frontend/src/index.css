@@ -124,6 +124,44 @@ html, body {
   }
 }
 
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+main,
+section,
+article,
+form,
+.card,
+.glass-card {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    overflow-wrap: anywhere;
+  }
+
+  .app-container > * {
+    min-width: 0;
+  }
+}
+
 /* Studio & Dashboard Responsive Grids */
 .studio-grid {
   display: grid;
@@ -179,6 +217,59 @@ button, input, textarea, select {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
+}
+
+.academic-nav.mobile-drawer-open {
+  z-index: 1100 !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.mobile-stack {
+  min-width: 0;
+}
+
+.mobile-drawer-panel {
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .mobile-drawer-overlay {
+    overscroll-behavior: contain;
+    overflow: hidden;
+  }
+
+  .mobile-drawer-panel {
+    width: min(290px, calc(100vw - 24px)) !important;
+    max-height: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .mobile-drawer-panel {
+    width: 100vw !important;
+    border-left: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .academic-nav {
+    padding-left: max(12px, env(safe-area-inset-left)) !important;
+    padding-right: max(12px, env(safe-area-inset-right)) !important;
+  }
+
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .mobile-stack > * {
+    max-width: 100%;
+  }
+
+  .mobile-stack > [style*="width: 1px"] {
+    display: none;
+  }
 }
 
 /* Structured Solid Cards */
@@ -522,6 +613,105 @@ button, input, textarea, select {
   .symbol-chip {
     padding: 5px 8px;
     font-size: 13px;
+  }
+
+  .card,
+  .glass-card {
+    border-radius: 10px;
+  }
+
+  .mobile-stack .btn-primary,
+  .mobile-stack .btn-secondary {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .ai-tutor-shell {
+    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 42px) !important;
+    min-height: 460px !important;
+  }
+
+  .ai-tutor-layout {
+    flex-direction: column !important;
+  }
+
+  .ai-tutor-sidebar {
+    width: 100% !important;
+    height: auto;
+    max-height: 156px;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ai-tutor-sidebar > div:last-child {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 12px !important;
+  }
+
+  .ai-tutor-sidebar > div:last-child > div {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ai-tutor-sidebar > div:last-child p {
+    display: none;
+  }
+
+  .ai-tutor-sidebar > div:last-child button {
+    flex: 0 0 180px;
+    width: 180px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .ai-tutor-chat {
+    min-height: 0;
+  }
+
+  .ai-tutor-chat-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px !important;
+  }
+
+  .ai-tutor-chat-header > div:first-child {
+    min-width: 0;
+    flex: 1 1 220px;
+  }
+
+  .ai-tutor-chat-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ai-tutor-messages {
+    min-height: 0;
+    padding: 16px 12px !important;
+  }
+
+  .ai-tutor-prompts {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .ai-tutor-message-bubble {
+    max-width: 100% !important;
+    padding: 12px 14px !important;
+  }
+
+  .ai-tutor-composer {
+    padding: 10px 12px !important;
+  }
+
+  .ai-tutor-input-row {
+    flex-direction: column;
+  }
+
+  .ai-tutor-input-row .btn-primary {
+    width: 100%;
   }
 }
 

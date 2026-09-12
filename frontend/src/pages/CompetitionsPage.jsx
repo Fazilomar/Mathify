@@ -314,7 +314,7 @@ export function CompetitionsPage() {
           backgroundColor: '#16161B',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+          <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="badge-academic" style={{ marginBottom: '10px' }}>
               Academic Mathematical Sprints
@@ -327,7 +327,7 @@ export function CompetitionsPage() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+          <div className="mobile-stack" style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
             {isHost ? (
               <button
                 id="host-competition-btn"

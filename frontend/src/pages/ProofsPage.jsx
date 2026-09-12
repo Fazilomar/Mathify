@@ -354,7 +354,7 @@ export function ProofsPage() {
           backgroundColor: '#16161B',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ flex: '1 1 300px' }}>
             <div className="badge-academic" style={{ marginBottom: '8px' }}>
               Formal Proof Studio

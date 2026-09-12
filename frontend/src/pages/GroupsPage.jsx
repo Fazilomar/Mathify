@@ -418,8 +418,20 @@ export function GroupsPage() {
   return (
     <div style={{ width: '100%' }}>
       {/* Header Banner */}
+<<<<<<< HEAD
       <div className="card" style={{ padding: '24px 32px', marginBottom: '20px', backgroundColor: '#16161B' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+=======
+      <div
+        className="card"
+        style={{
+          padding: '24px 32px',
+          marginBottom: '20px',
+          backgroundColor: '#16161B',
+        }}
+      >
+        <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+>>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
           <div>
             <div className="badge-academic" style={{ marginBottom: '8px' }}>Synchronous Research</div>
             <h1 style={{ fontSize: '24px', margin: '0 0 6px', fontWeight: 700 }}>Live Mathematical Study Rooms & Whiteboards</h1>
@@ -427,8 +439,19 @@ export function GroupsPage() {
               Collaborate in peer-led mathematical study groups, conduct real-time LaTeX whiteboard derivations, and participate in departmental seminar calls.
             </p>
           </div>
+<<<<<<< HEAD
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <button id="create-room-btn" onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px' }}>
+=======
+
+          <div className="mobile-stack" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <button
+              id="create-room-btn"
+              onClick={() => setShowCreateModal(true)}
+              className="btn-primary"
+              style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px' }}
+            >
+>>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
               Create Study Room
             </button>
