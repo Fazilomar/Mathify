@@ -563,7 +563,7 @@ export function GroupsPage() {
 
               {((activeGroup && activeGroup.active_meeting) || activeMeeting) && (() => {
                 const currentMeeting = activeGroup?.active_meeting || activeMeeting;
-                const isHost = 
+                const isHost =
                   currentMeeting.initiator === user?.username ||
                   currentMeeting.initiator_username === user?.username ||
                   activeGroup?.created_by === user?.id ||
@@ -729,7 +729,7 @@ export function GroupsPage() {
                                 border: mtgStatus === 'active' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border)',
                               }}
                             >
-                              {mtgStatus === 'active' ? '🔴 LIVE NOW' : mtgStatus === 'scheduled' ? '📅 SCHEDULED' : 'ENDED'}
+                              {mtgStatus === 'active' ? 'LIVE NOW' : mtgStatus === 'scheduled' ? 'SCHEDULED' : 'ENDED'}
                             </span>
                           </div>
 
