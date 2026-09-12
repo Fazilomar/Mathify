@@ -19,6 +19,8 @@ export function GroupsPage() {
   const [activeMeeting, setActiveMeeting] = useState(null);
   const [meetingDropdownOpen, setMeetingDropdownOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState('');
+  const [confirmEndMeeting, setConfirmEndMeeting] = useState(null);
+
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
@@ -203,9 +205,15 @@ export function GroupsPage() {
     setShowCallModal(true);
   };
 
-  const handleEndMeetingDirect = async (mtg) => {
+  const handleEndMeetingDirect = (mtg) => {
     if (!mtg) return;
-    if (!window.confirm(`End "${mtg.title || 'Seminar'}" for all participants?`)) return;
+    setConfirmEndMeeting(mtg);
+  };
+
+  const executeEndMeeting = async () => {
+    if (!confirmEndMeeting) return;
+    const mtg = confirmEndMeeting;
+    setConfirmEndMeeting(null);
     try {
       if (mtg.id) {
         await API.post(`/api/social/calls/${mtg.id}/end/`);
@@ -222,6 +230,7 @@ export function GroupsPage() {
       console.error('Error ending meeting:', err);
     }
   };
+
 
 
   const copyMeetingLink = (code) => {
@@ -998,7 +1007,134 @@ export function GroupsPage() {
           <span>{copiedToast}</span>
         </div>
       )}
+
+      {/* Modern Confirmation Popup for Ending Seminar */}
+      {confirmEndMeeting && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(10, 10, 14, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+          onClick={() => setConfirmEndMeeting(null)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: '440px',
+              width: '100%',
+              backgroundColor: '#1A1A22',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 24px 64px rgba(0, 0, 0, 0.9)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  color: '#EF4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>call_end</span>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: 'var(--text)' }}>
+                  End Seminar for Everyone?
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  This will immediately terminate the call and disconnect all active scholars.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border)',
+                fontSize: '13px',
+                color: 'var(--text)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>
+                meeting_room
+              </span>
+              <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {confirmEndMeeting.title || 'Seminar'}
+              </strong>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button"
+                onClick={() => setConfirmEndMeeting(null)}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  backgroundColor: '#27272A',
+                  color: 'var(--text)',
+                  fontWeight: 600,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s ease',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeEndMeeting}
+                style={{
+                  flex: 1.2,
+                  padding: '11px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#EF4444',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>call_end</span>
+                <span>End Meeting</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
 
