@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'storages',
 
     # local
     'accounts',
@@ -175,8 +176,56 @@ STATICFILES_DIRS = [
     d for d in [BASE_DIR / 'static', FRONTEND_DIST / 'assets'] if d.exists()
 ]
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
+USE_SUPABASE_STORAGE = config('USE_SUPABASE_STORAGE', default=False, cast=bool)
+
+if USE_SUPABASE_STORAGE:
+    AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY', default='').strip()
+    AWS_SECRET_ACCESS_KEY = config('SUPABASE_STORAGE_SECRET_KEY', default='').strip()
+    AWS_STORAGE_BUCKET_NAME = config('SUPABASE_STORAGE_BUCKET_NAME', default='mathify-media').strip()
+    AWS_S3_ENDPOINT_URL = config('SUPABASE_STORAGE_ENDPOINT', default='').strip()
+    AWS_S3_REGION_NAME = config('SUPABASE_STORAGE_REGION', default='eu-west-1').strip()
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+
+    endpoint_clean = AWS_S3_ENDPOINT_URL.rstrip('/')
+    if 'supabase.co/storage/v1/s3' in endpoint_clean:
+        base_supabase = endpoint_clean.replace('/storage/v1/s3', '')
+        AWS_S3_CUSTOM_DOMAIN = f"{base_supabase.replace('https://', '')}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}"
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    else:
+        custom_domain = config('AWS_S3_CUSTOM_DOMAIN', default=None)
+        if custom_domain:
+            AWS_S3_CUSTOM_DOMAIN = custom_domain
+            MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+        else:
+            MEDIA_URL = f"{endpoint_clean}/{AWS_STORAGE_BUCKET_NAME}/"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_ROOT = ''
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
+    if not IS_VERCEL:
+        try:
+            MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
 # Request body and upload sizes (prevent 400 RequestDataTooBig on valid images/attachments)
 DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)  # 10 MB
@@ -184,7 +233,6 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=10 *
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django REST Framework & Throttling
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',

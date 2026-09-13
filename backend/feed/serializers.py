@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Post, Like, Comment, Follow
+from mathify.media_fields import HybridFileField
 
 
 def _safe_user_name(user, fallback='Scholar'):
@@ -42,6 +43,7 @@ class PostSerializer(serializers.ModelSerializer):
     likes_count = serializers.ReadOnlyField()
     comments_count = serializers.ReadOnlyField()
     is_liked = serializers.SerializerMethodField()
+    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=25)
 
     def get_author(self, obj):
         return _safe_user_name(obj.author)

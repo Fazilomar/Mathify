@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Category, Tag, Resource, Bookmark
+from mathify.media_fields import HybridFileField
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -41,6 +42,7 @@ class ResourceSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     bookmark_count = serializers.ReadOnlyField()
     is_bookmarked = serializers.SerializerMethodField()
+    file = HybridFileField(required=False, allow_null=True, max_upload_size_mb=50)
     MAX_FILE_BYTES = 50 * 1024 * 1024
 
     class Meta:

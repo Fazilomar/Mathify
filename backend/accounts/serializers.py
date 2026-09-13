@@ -3,6 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, Profile, Department
+from mathify.media_fields import HybridImageField
 
 
 class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -61,6 +62,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    avatar = HybridImageField(required=False, allow_null=True)
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(), source='department',

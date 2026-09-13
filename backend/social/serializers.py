@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Group, GroupMembership, GroupJoinRequest, Message, Call
+from mathify.media_fields import HybridImageField, HybridFileField
 
 
 def _safe_user_name(user, fallback='Scholar'):
@@ -63,6 +64,7 @@ class GroupJoinRequestSerializer(serializers.ModelSerializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
+    avatar = HybridImageField(required=False, allow_null=True)
     created_by = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
@@ -115,6 +117,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender = serializers.SerializerMethodField()
     sender_id = serializers.ReadOnlyField(source='sender.id')
     sender_avatar = serializers.SerializerMethodField()
+    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=50)
 
     MAX_MEDIA_BYTES = 50 * 1024 * 1024
 

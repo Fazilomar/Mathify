@@ -42,8 +42,14 @@ urlpatterns = [
     path('api/studio/', include('studio.urls')),
     path('api/rankings/', include('rankings.urls')),
     path('api/ai-tutor/', include('ai_tutor.urls')),
+    path('api/notifications/', include('notifications.urls')),
     path('api/', include('notifications.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+]
+
+if getattr(settings, 'MEDIA_ROOT', None) and str(getattr(settings, 'MEDIA_URL', '')).startswith('/'):
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if getattr(settings, 'STATIC_ROOT', None) and str(getattr(settings, 'STATIC_URL', '')).startswith('/'):
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 from django.views.static import serve
 

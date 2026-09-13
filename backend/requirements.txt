@@ -10,3 +10,5 @@ scipy
 dj-database-url
 whitenoise
 gunicorn
+django-storages
+boto3
