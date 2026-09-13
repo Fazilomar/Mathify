@@ -314,7 +314,7 @@ export function CompetitionsPage() {
           backgroundColor: '#16161B',
         }}
       >
-          <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="badge-academic" style={{ marginBottom: '10px' }}>
               Academic Mathematical Sprints

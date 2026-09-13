@@ -1,6 +1,57 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, Profile, Department
+
+
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Accepts either 'username', 'email', or both in the request payload,
+    allowing users to sign in seamlessly via their username or email address.
+    """
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        login_identifier = (
+            attrs.get('username') or
+            attrs.get('email') or
+            attrs.get(self.username_field) or
+            ''
+        ).strip()
+        password = attrs.get('password', '')
+
+        if not login_identifier:
+            raise serializers.ValidationError({
+                'detail': 'Please enter your username or email address.'
+            })
+
+        if not password:
+            raise serializers.ValidationError({
+                'detail': 'Please enter your password.'
+            })
+
+        request = self.context.get('request')
+        user = authenticate(request=request, username=login_identifier, password=password)
+
+        if not user:
+            raise serializers.ValidationError({
+                'detail': 'No active account found with the given credentials.'
+            })
+
+        if not user.is_active:
+            raise serializers.ValidationError({
+                'detail': 'This account has been deactivated.'
+            })
+
+        self.user = user
+        refresh = self.get_token(user)
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

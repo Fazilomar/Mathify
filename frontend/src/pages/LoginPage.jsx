@@ -66,6 +66,25 @@ export function LoginPage() {
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(229, 169, 60, 0.08)',
         }}
       >
+        <Link
+          to="/"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: 'var(--text-subtle)',
+            fontSize: '13px',
+            textDecoration: 'none',
+            marginBottom: '18px',
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          Back to Mathify
+        </Link>
+
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <h1
             className="font-display"

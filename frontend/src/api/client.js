@@ -87,7 +87,6 @@ export const API = {
           headers['Authorization'] = `Bearer ${this.getAccess()}`;
           res = await fetch(url, { ...opts, headers });
 
-          // If retried request is still 401, clear session and dispatch unauthorized
           if (res.status === 401) {
             this.clearTokens();
             window.dispatchEvent(new Event('auth:unauthorized'));
@@ -98,7 +97,6 @@ export const API = {
         }
       }
 
-      // Surface rate limiting so polling components can back off
       if (res.status === 429) {
         const retryAfterHeader = res.headers.get('Retry-After');
         window.dispatchEvent(new CustomEvent('api:rate-limited', {
@@ -151,3 +149,30 @@ export const API = {
     return this.req(endpoint, { ...opts, method: 'DELETE' });
   },
 };
+
+export function resolveMediaUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (trimmed.includes('127.0.0.1:8000') || trimmed.includes('localhost:8000')) {
+        const path = trimmed.replace(/^https?:\/\/(127\.0\.0\.1|localhost):8000/, '');
+        return API_BASE ? `${API_BASE.replace(/\/+$/, '')}${path}` : `http://${window.location.hostname}:8000${path}`;
+      }
+    }
+    return trimmed;
+  }
+
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  if (API_BASE) {
+    return `${API_BASE.replace(/\/+$/, '')}${cleanPath}`;
+  }
+
+  return cleanPath;
+}

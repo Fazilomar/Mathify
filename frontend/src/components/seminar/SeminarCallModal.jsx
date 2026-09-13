@@ -242,7 +242,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
       screenAudioTrackRef.current.stop();
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current.close().catch(() => { });
     }
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
@@ -545,11 +545,11 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
     if (isEndingMeeting) return;
     setIsEndingMeeting(true);
     try {
-      await sendSignal(null, 'leave', { username: user?.username }).catch(() => {});
+      await sendSignal(null, 'leave', { username: user?.username }).catch(() => { });
       if (meeting?.id) {
-        await API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => {});
+        await API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => { });
       } else if (group?.id) {
-        await API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => {});
+        await API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
       }
       onMeetingEnded?.(meetingCode, meeting?.id);
     } finally {
@@ -563,7 +563,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
     if (isEndingMeeting) return;
     setIsEndingMeeting(true);
     try {
-      await sendSignal(null, 'end_meeting', {}).catch(() => {});
+      await sendSignal(null, 'end_meeting', {}).catch(() => { });
       if (meeting?.id) {
         await API.post(`/api/social/calls/${meeting.id}/end/`, {});
       } else if (group?.id) {

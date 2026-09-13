@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
 
 export function FeedPage() {
@@ -13,6 +13,7 @@ export function FeedPage() {
   const [content, setContent] = useState('');
   const [latex, setLatex] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
   const [previewTab, setPreviewTab] = useState('write');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -86,6 +87,27 @@ export function FeedPage() {
     };
   }, [posts]);
 
+  const handleFileSelect = (file) => {
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+    }
+    if (file) {
+      setSelectedFile(file);
+      setFilePreview(URL.createObjectURL(file));
+    } else {
+      setSelectedFile(null);
+      setFilePreview(null);
+    }
+  };
+
+  const handleClearFile = () => {
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+    }
+    setSelectedFile(null);
+    setFilePreview(null);
+  };
+
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!content.trim() && !latex.trim() && !selectedFile) return;
@@ -95,7 +117,11 @@ export function FeedPage() {
       const formData = new FormData();
       if (content.trim()) formData.append('content', content.trim());
       if (latex.trim()) formData.append('latex_content', latex.trim());
-      if (selectedFile) formData.append('media', selectedFile);
+      if (selectedFile) {
+        formData.append('media', selectedFile);
+        const isVideo = selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(selectedFile.name);
+        formData.append('post_type', isVideo ? 'video' : 'image');
+      }
 
       const res = await API.post('/api/feed/posts/', formData);
       if (res.ok) {
@@ -110,8 +136,11 @@ export function FeedPage() {
         setPosts((prev) => [hydratedPost, ...prev]);
         setContent('');
         setLatex('');
-        setSelectedFile(null);
+        handleClearFile();
         setPreviewTab('write');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.media ? err.media.join(' ') : (err.detail || 'Unable to publish post.'));
       }
     } catch (err) {
       console.error('Failed to create post:', err);
@@ -358,22 +387,33 @@ export function FeedPage() {
                     style={{ fontFamily: 'monospace', fontSize: '13px' }}
                   />
 
-                  {/* Attachment indicator */}
+                  {/* Attachment indicator with visual thumbnail */}
                   {selectedFile && (
-                    <div style={{ fontSize: '12px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>attach_file</span>
-                      {selectedFile.name}
+                    <div style={{ marginTop: '8px', padding: '8px 12px', background: 'rgba(0,0,0,0.35)', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                        {filePreview && !selectedFile.type?.startsWith('video/') ? (
+                          <img src={filePreview} alt="Preview" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                        ) : (
+                          <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--primary)', flexShrink: 0 }}>
+                            {selectedFile.type?.startsWith('video/') ? 'videocam' : 'image'}
+                          </span>
+                        )}
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--text)' }}>
+                          {selectedFile.name}
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setSelectedFile(null)}
-                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer' }}
+                        onClick={handleClearFile}
+                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', flexShrink: 0 }}
                       >
-                        remove
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                        Remove
                       </button>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
                     <label
                       style={{
                         display: 'inline-flex',
@@ -390,7 +430,7 @@ export function FeedPage() {
                         type="file"
                         accept="image/*,video/*"
                         style={{ display: 'none' }}
-                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                        onChange={(e) => handleFileSelect(e.target.files[0])}
                       />
                     </label>
 
@@ -504,7 +544,7 @@ export function FeedPage() {
                       }}
                     >
                       {post.author_avatar ? (
-                        <img src={post.author_avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={resolveMediaUrl(post.author_avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         authorDisplay?.[0]?.toUpperCase() || 'M'
                       )}
@@ -560,11 +600,11 @@ export function FeedPage() {
                   )}
                 </div>
 
-                {/* Post Body */}
+                {/* Post Body with Inline LaTeX Rendering */}
                 {post.content && (
-                  <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
-                    {post.content}
-                  </p>
+                  <div style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
+                    <MathRenderer content={post.content} />
+                  </div>
                 )}
 
               {/* LaTeX Formula */}
@@ -578,11 +618,16 @@ export function FeedPage() {
 
               {/* Media Attachment */}
               {post.media && (
-                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
-                  {/\.(mp4|webm|ogg)$/i.test(post.media) ? (
-                    <video src={post.media} controls style={{ width: '100%', maxHeight: '420px', display: 'block' }} />
+                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '480px', background: 'rgba(0,0,0,0.4)' }}>
+                  {/\.(mp4|webm|ogg|mov)$/i.test(post.media) ? (
+                    <video src={resolveMediaUrl(post.media)} controls style={{ width: '100%', maxHeight: '480px', display: 'block' }} />
                   ) : (
-                    <img src={post.media} alt="Post attachment" style={{ width: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
+                    <img
+                      src={resolveMediaUrl(post.media)}
+                      alt="Post attachment"
+                      style={{ width: '100%', maxHeight: '480px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                      loading="lazy"
+                    />
                   )}
                 </div>
               )}

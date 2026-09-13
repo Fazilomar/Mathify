@@ -87,6 +87,30 @@ html, body {
   }
 }
 
+/* Auth Page Isolated Layout (No Navbar, Perfectly Centered) */
+.auth-main {
+  flex: 1 0 auto;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: radial-gradient(circle at 50% 20%, rgba(229, 169, 60, 0.05), transparent 60%), #0A0A0E;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .app-container {
   width: 100%;
   max-width: 1200px;
@@ -406,9 +430,9 @@ form,
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 20px;
-  min-height: 640px;
-  height: calc(100vh - var(--nav-height) - 120px);
-  height: calc(100dvh - var(--nav-height) - 120px);
+  min-height: 520px;
+  height: calc(100vh - var(--nav-height) - 240px);
+  height: calc(100dvh - var(--nav-height) - 240px);
 }
 
 @media (max-width: 860px) {
@@ -1096,84 +1120,407 @@ button, input, textarea, select {
   }
 }
 
+/* Publication-Grade KaTeX Math Typography */
+.math-content {
+  font-family: inherit;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.math-content .katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}
+
+.math-block {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  text-align: center;
+}
+
+.math-block .katex-display {
+  margin: 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.math-inline {
+  display: inline;
+  vertical-align: baseline;
+  padding: 0 2px;
+}
+
+.math-paragraph-spacer {
+  height: 12px;
+}
+
+.math-inline-code {
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+  color: #E2E8F0;
+}
+
+.math-fallback {
+  font-family: monospace;
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+.math-divider {
+  border: 0;
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+  opacity: 0.8;
+}
+
+.math-h2 {
+  font-size: 1.25em;
+  font-weight: 700;
+  color: var(--text);
+  margin: 14px 0 8px;
+}
+
+.math-h3 {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 12px 0 6px;
+}
+
+.math-h4 {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--text);
+  margin: 10px 0 4px;
+}
+
+.math-h5 {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
+}
+
+.math-quote {
+  border-left: 3px solid var(--primary);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.math-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.math-bullet {
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.math-code-block {
+  background: #111116;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 0.88em;
+  color: #E2E8F0;
+}
+
+/* AI Tutor Mobile & Desktop Layout */
+.full-height-main {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  min-height: calc(100vh - var(--nav-height));
+  height: calc(100vh - var(--nav-height));
+  overflow: hidden;
+}
+
+.full-height-container {
+  height: 100%;
+  max-width: 1280px;
+}
+
+.desktop-only-text {
+  display: inline;
+}
+.ai-tutor-sidebar-toggle,
+.ai-tutor-sidebar-close,
+.ai-tutor-sidebar-backdrop {
+  display: none;
+}
+
+/* Groups Page Layout */
+.groups-page-main {
+  /* On desktop: allows full natural window scrolling */
+  overflow-y: auto;
+}
+
+.groups-page-container {
+  /* Inherits app-container max-width */
+}
+
+/* Groups Page Mobile Off-Canvas Drawer & Controls */
+.groups-sidebar-toggle,
+.groups-sidebar-close,
+.groups-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .groups-page-main {
+    padding-top: 0 !important;
+    padding-bottom: var(--bottom-nav-height) !important;
+    height: calc(100dvh - var(--nav-height)) !important;
+    min-height: calc(100dvh - var(--nav-height)) !important;
+    overflow: hidden !important;
+  }
+
+  .groups-page-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .desktop-only-banner {
+    display: none !important;
+  }
+
+  .groups-shell {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+
+  .groups-shell .groups-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    gap: 0 !important;
+    position: relative !important;
+  }
+
+  .groups-sidebar-col {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 310px !important;
+    max-width: 86vw !important;
+    height: 100% !important;
+    z-index: 1050 !important;
+    background: #141418 !important;
+    border-right: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 36px rgba(0, 0, 0, 0.85);
+  }
+
+  .groups-sidebar-col.open {
+    transform: translateX(0) !important;
+    display: flex !important;
+  }
+
+  .groups-sidebar-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.72) !important;
+    z-index: 1040 !important;
+    backdrop-filter: blur(4px);
+  }
+
+  .groups-sidebar-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .groups-room-count-pill {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .groups-sidebar-close {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-subtle);
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .groups-chat-col {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 14px !important;
+    background: #111115 !important;
+    flex: 1 1 100% !important;
+  }
+}
+
 @media (max-width: 768px) {
+  /* AI Tutor: Uncluttered fluid layout, full-viewport breathing room */
+  .full-height-main {
+    padding-top: 0 !important;
+    padding-bottom: var(--bottom-nav-height) !important;
+    min-height: calc(100dvh - var(--nav-height)) !important;
+    height: calc(100dvh - var(--nav-height)) !important;
+    overflow: hidden !important;
+  }
+
+  .full-height-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
   .ai-tutor-shell {
-    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 42px) !important;
-    min-height: 460px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    width: 100% !important;
   }
 
   .ai-tutor-layout {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    position: relative !important;
+    height: 100% !important;
+    display: flex !important;
     flex-direction: column !important;
+    background: #111115 !important;
   }
 
+  /* Off-canvas sessions drawer on mobile */
   .ai-tutor-sidebar {
-    width: 100% !important;
-    height: auto;
-    max-height: 156px;
-    border-right: none !important;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .ai-tutor-sessions-toggle {
-    display: inline-flex;
-  }
-
-  .ai-tutor-sidebar:not(.is-open) {
-    display: none;
-  }
-
-  .ai-tutor-sidebar.is-open {
-    position: absolute;
+    position: fixed !important;
     top: 0;
-    right: 0;
     left: 0;
-    z-index: 60;
-    display: flex;
-    max-height: min(54dvh, 380px);
-    border-right: 0 !important;
-    border-bottom: 1px solid var(--primary-border);
-    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+    bottom: 0;
+    width: 290px !important;
+    max-width: 86vw !important;
+    height: 100% !important;
+    z-index: 1050 !important;
+    background: #141418 !important;
+    border-right: 1px solid var(--border) !important;
+    border-bottom: none !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.85);
   }
 
-  .ai-tutor-sidebar > div:last-child {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 8px 12px !important;
+  .ai-tutor-sidebar.open {
+    transform: translateX(0) !important;
   }
 
-  .ai-tutor-sidebar > div:last-child > div {
-    display: flex;
-    gap: 8px;
+  .ai-tutor-sidebar-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.7) !important;
+    z-index: 1040 !important;
+    backdrop-filter: blur(4px);
   }
 
-  .ai-tutor-sidebar > div:last-child p {
-    display: none;
+  .ai-tutor-sidebar-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
-  .ai-tutor-sidebar > div:last-child button {
-    flex: 0 0 180px;
-    width: 180px !important;
-    margin-bottom: 0 !important;
+  .ai-tutor-session-pill {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .ai-tutor-sidebar-close {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
   }
 
   .ai-tutor-chat {
+    flex: 1;
     min-height: 0;
+    height: 100%;
   }
 
   .ai-tutor-chat-header {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 14px !important;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 10px 12px !important;
   }
 
   .ai-tutor-chat-header > div:first-child {
     min-width: 0;
-    flex: 1 1 220px;
+    flex: 1 1 auto;
+    overflow: hidden;
   }
 
   .ai-tutor-chat-header h2 {
+    font-size: 13.5px !important;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1181,16 +1528,19 @@ button, input, textarea, select {
 
   .ai-tutor-messages {
     min-height: 0;
-    padding: 16px 12px !important;
+    padding: 14px 12px !important;
+    gap: 12px !important;
   }
 
   .ai-tutor-prompts {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
   }
 
   .ai-tutor-message-bubble {
-    max-width: 100% !important;
-    padding: 12px 14px !important;
+    max-width: 95% !important;
+    padding: 11px 14px !important;
+    font-size: 13.5px;
   }
 
   .ai-tutor-composer {
@@ -1198,28 +1548,16 @@ button, input, textarea, select {
   }
 
   .ai-tutor-input-row {
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center;
   }
 
-  .ai-tutor-input-row {
-    flex-direction: row;
-    gap: 6px !important;
-  }
-
-  .ai-tutor-input-row .glass-input {
-    min-width: 0;
-    padding: 10px 11px !important;
-  }
-
-  .ai-tutor-attach-button,
-  .ai-tutor-send-button {
-    width: 40px;
-    height: 40px;
-    flex-basis: 40px;
-  }
-
-  .ai-tutor-attachment {
-    margin-left: 46px;
+  .ai-tutor-input-row .btn-primary {
+    width: auto !important;
+    padding: 10px 18px !important;
+    flex-shrink: 0;
   }
 }
 

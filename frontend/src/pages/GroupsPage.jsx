@@ -4,6 +4,7 @@ import { API } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
 import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
+import MathRenderer from '../components/common/MathRenderer';
 
 export function GroupsPage() {
   const { user, isAuthenticated } = useAuth();
@@ -18,6 +19,8 @@ export function GroupsPage() {
   const [showMembers, setShowMembers] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [roomFilter, setRoomFilter] = useState('');
+  const [mobileTab, setMobileTab] = useState('chat'); // 'rooms' | 'chat'
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -36,7 +39,23 @@ export function GroupsPage() {
 
   const chatScrollRef = useRef(null);
 
-  const quickSymbols = ['\\forall', '\\exists', '\\in', '\\implies', '\\sum', '\\int', '\\mathbb{R}', '\\mathbb{C}'];
+  const quickSymbols = [
+    { label: '∀', code: '\\forall ' },
+    { label: '∃', code: '\\exists ' },
+    { label: '∈', code: '\\in ' },
+    { label: '∉', code: '\\notin ' },
+    { label: '⟹', code: '\\implies ' },
+    { label: '⟺', code: '\\iff ' },
+    { label: '∑', code: '\\sum ' },
+    { label: '∫', code: '\\int ' },
+    { label: 'ℝ', code: '\\mathbb{R}' },
+    { label: 'ℂ', code: '\\mathbb{C}' },
+    { label: 'ℤ', code: '\\mathbb{Z}' },
+    { label: 'ℕ', code: '\\mathbb{N}' },
+    { label: 'π', code: '\\pi ' },
+    { label: '∞', code: '\\infty ' },
+    { label: '√', code: '\\sqrt{} ' },
+  ];
 
   const fetchGroups = useCallback(async (silent = false, signal) => {
     try {
@@ -470,10 +489,10 @@ export function GroupsPage() {
   });
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* Header Banner */}
+    <div className="groups-shell" style={{ width: '100%' }}>
+      {/* Header Banner - Desktop Only */}
       <div
-        className="card"
+        className="card groups-banner-card desktop-only-banner"
         style={{
           padding: '24px 32px',
           marginBottom: '20px',
@@ -488,6 +507,7 @@ export function GroupsPage() {
               Collaborate in peer-led mathematical study groups, conduct real-time LaTeX whiteboard derivations, and participate in departmental seminar calls.
             </p>
           </div>
+
           <div className="mobile-stack" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <button
               id="create-room-btn"
@@ -507,13 +527,44 @@ export function GroupsPage() {
         </div>
       </div>
 
-      {/* Main Dual-Pane Studio Layout */}
+      {/* Main Dual-Pane / Off-Canvas Mobile Drawer Layout */}
       <div className="groups-layout">
-        {/* Left Column: Active Rooms Directory */}
-        <div className="card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D' }}>
+        {/* Backdrop for mobile rooms drawer */}
+        {sidebarOpen && (
+          <div
+            className="groups-sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Left Column: Active Rooms Directory (Off-Canvas Drawer on Mobile) */}
+        <aside
+          className={`groups-sidebar-col card ${sidebarOpen ? 'open' : ''}`}
+          style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D', minHeight: 0 }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Active Study Rooms</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{filteredGroups.length} rooms</span>
+            <div>
+              <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Active Study Rooms</h2>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>{filteredGroups.length} rooms available</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={() => { setShowCreateModal(true); setSidebarOpen(false); }}
+                className="btn-primary"
+                style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
+                New
+              </button>
+              <button
+                type="button"
+                className="groups-sidebar-close"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close rooms list"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -527,7 +578,7 @@ export function GroupsPage() {
             />
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {loading ? (
               <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <span className="material-symbols-outlined spin" style={{ fontSize: '28px', color: 'var(--primary)', marginBottom: '8px' }}>progress_activity</span>
@@ -538,7 +589,7 @@ export function GroupsPage() {
                 <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>meeting_room</span>
                 <p style={{ fontSize: '13.5px', color: 'var(--text)', fontWeight: 500, margin: '4px 0' }}>No study rooms found</p>
                 <p style={{ fontSize: '12px', color: 'var(--text-subtle)', margin: '0 0 16px' }}>Establish the first room to collaborate live.</p>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ padding: '8px 14px', fontSize: '12.5px', width: '100%' }}>
+                <button onClick={() => { setShowCreateModal(true); setSidebarOpen(false); }} className="btn-primary" style={{ padding: '8px 14px', fontSize: '12.5px', width: '100%' }}>
                   Create Study Room
                 </button>
               </div>
@@ -548,7 +599,10 @@ export function GroupsPage() {
                 return (
                   <div
                     key={g.id}
-                    onClick={() => setActiveGroup(g)}
+                    onClick={() => {
+                      setActiveGroup(g);
+                      setSidebarOpen(false);
+                    }}
                     style={{
                       padding: '14px',
                       borderRadius: '10px',
@@ -567,7 +621,7 @@ export function GroupsPage() {
                       </span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.35 }}>
-                      {g.description || 'General mathematical collaboration & problem solving'}
+                      <MathRenderer content={g.description || 'General mathematical collaboration & problem solving'} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
                       <span>Host: {g.created_by || 'Scholar'}</span>
@@ -589,26 +643,45 @@ export function GroupsPage() {
               })
             )}
           </div>
-        </div>
+        </aside>
 
         {/* Right Column: Selected Group Live Discussion & Collaboration */}
-        <div className="card" style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#18181D' }}>
+        <div
+          className="groups-chat-col card"
+          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', backgroundColor: '#18181D', minHeight: 0 }}
+        >
           {activeGroup ? (
             <>
-              <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>{activeGroup.name}</h2>
-                    <span className="badge-academic" style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}>
-                      {activeGroup.group_type || 'Study Room'}
-                    </span>
-                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>group</span>
-                      {activeGroup.member_count || 1} member{(activeGroup.member_count || 1) !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {activeGroup.description || 'Active live collaboration thread.'}
+              <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                  <button
+                    type="button"
+                    className="groups-sidebar-toggle"
+                    onClick={() => setSidebarOpen((prev) => !prev)}
+                    title="View all study rooms"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>meeting_room</span>
+                    <span>Rooms</span>
+                    {groups.length > 0 && (
+                      <span className="groups-room-count-pill">
+                        {groups.length}
+                      </span>
+                    )}
+                  </button>
+                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
+                      <h2 style={{ fontSize: '16px', margin: 0, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeGroup.name}</h2>
+                      <span className="badge-academic desktop-only-text" style={{ fontSize: '10.5px', padding: '1px 7px', textTransform: 'capitalize' }}>
+                        {activeGroup.group_type || 'Study Room'}
+                      </span>
+                      <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>group</span>
+                        {activeGroup.member_count || 1}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <MathRenderer content={activeGroup.description || 'Active live collaboration thread.'} />
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                     <span className="group-privacy-badge">
@@ -630,10 +703,15 @@ export function GroupsPage() {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: '12.5px' }} onClick={() => setShowWhiteboardModal(true)}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>draw</span>
-                    Whiteboard
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ padding: '7px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => setShowWhiteboardModal(true)}
+                    title="Open Live Whiteboard"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>draw</span>
+                    <span className="desktop-only-text">Whiteboard</span>
                   </button>
 
                   <div style={{ position: 'relative' }}>
@@ -641,11 +719,12 @@ export function GroupsPage() {
                       <button
                         type="button"
                         className="btn-primary"
-                        style={{ padding: '7px 14px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                        style={{ padding: '7px 11px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
                         onClick={openStartInstantModal}
+                        title="Start Instant Seminar Meeting"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
-                        Start Meeting
+                        <span className="desktop-only-text" style={{ marginLeft: '4px' }}>Start Meeting</span>
                       </button>
                       <button
                         type="button"
@@ -756,7 +835,7 @@ export function GroupsPage() {
                       />
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                          🔴 Live Seminar: {currentMeeting.title}
+                           Live Seminar: {currentMeeting.title}
                         </div>
                         <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                           Hosted by @{currentMeeting.initiator || currentMeeting.initiator_username || 'Host'} • {currentMeeting.participants_count || 1} connected
@@ -811,14 +890,8 @@ export function GroupsPage() {
                 );
               })()}
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {activeGroup.is_private && !activeGroup.is_member && activeGroup.created_by_id !== API.getCurrentUserId() ? (
-                  <div className="group-private-notice">
-                    <span className="material-symbols-outlined">lock</span>
-                    <strong>This is a private group.</strong>
-                    <p>{activeGroup.request_status === 'pending' ? 'Your join request is waiting for the creator.' : 'Request access to view the discussion and participate.'}</p>
-                  </div>
-                ) : displayedMessages.length === 0 ? (
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {displayedMessages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>forum</span>
                     <p style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 500, margin: '4px 0' }}>
@@ -976,8 +1049,9 @@ export function GroupsPage() {
                           </span>
                           <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
                         </div>
-                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                        {m.media && <a className="group-message-attachment" href={m.media} target="_blank" rel="noreferrer"><span className="material-symbols-outlined">attach_file</span> View attachment</a>}
+                        <div style={{ color: 'var(--text)', marginTop: '2px' }}>
+                          <MathRenderer content={m.text} />
+                        </div>
                         {m.status === 'sending' && (
                           <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
                         )}
@@ -1007,18 +1081,19 @@ export function GroupsPage() {
                 <div ref={chatScrollRef} />
               </div>
 
-              {(!activeGroup.is_private || activeGroup.is_member || activeGroup.created_by_id === API.getCurrentUserId()) && <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
                   <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>LaTeX:</span>
-                  {quickSymbols.map((sym) => (
+                  {quickSymbols.map((s) => (
                     <button
-                      key={sym}
+                      key={s.label}
                       type="button"
-                      onClick={() => setChatInput((prev) => prev + ` $${sym}$ `)}
+                      onClick={() => setChatInput((prev) => (prev ? `${prev} $${s.code}$ ` : `$${s.code}$ `))}
                       className="symbol-chip"
-                      style={{ fontSize: '11.5px', padding: '2px 7px' }}
+                      style={{ fontSize: '12px', padding: '2px 8px' }}
+                      title={s.code}
                     >
-                      ${sym}$
+                      {s.label}
                     </button>
                   ))}
                 </div>
@@ -1050,9 +1125,26 @@ export function GroupsPage() {
               <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '360px', margin: '0 auto 18px' }}>
                 Select an existing study room on the left, or establish a new mathematical seminar room.
               </p>
-              <button onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ padding: '9px 20px', fontSize: '13px' }}>
-                Create Study Room
-              </button>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="btn-secondary"
+                  style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>meeting_room</span>
+                  Browse Rooms ({groups.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(true)}
+                  className="btn-primary"
+                  style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>add</span>
+                  Create Study Room
+                </button>
+              </div>
             </div>
           )}
         </div>

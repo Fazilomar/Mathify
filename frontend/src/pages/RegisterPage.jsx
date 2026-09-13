@@ -149,6 +149,25 @@ export function RegisterPage() {
           border: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
+        <Link
+          to="/"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: 'var(--text-subtle)',
+            fontSize: '13px',
+            textDecoration: 'none',
+            marginBottom: '16px',
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          Back to Mathify
+        </Link>
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <h1 className="font-display" style={{ fontSize: '28px', color: 'var(--text)', marginBottom: '6px' }}>
