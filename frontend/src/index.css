@@ -205,9 +205,9 @@ form,
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 20px;
-  min-height: 640px;
-  height: calc(100vh - var(--nav-height) - 120px);
-  height: calc(100dvh - var(--nav-height) - 120px);
+  min-height: 520px;
+  height: calc(100vh - var(--nav-height) - 240px);
+  height: calc(100dvh - var(--nav-height) - 240px);
 }
 
 @media (max-width: 860px) {
@@ -802,6 +802,16 @@ button, input, textarea, select {
   display: none;
 }
 
+/* Groups Page Layout */
+.groups-page-main {
+  /* On desktop: allows full natural window scrolling */
+  overflow-y: auto;
+}
+
+.groups-page-container {
+  /* Inherits app-container max-width */
+}
+
 /* Groups Page Mobile Off-Canvas Drawer & Controls */
 .groups-sidebar-toggle,
 .groups-sidebar-close,
@@ -810,6 +820,21 @@ button, input, textarea, select {
 }
 
 @media (max-width: 860px) {
+  .groups-page-main {
+    padding-top: 0 !important;
+    padding-bottom: var(--bottom-nav-height) !important;
+    height: calc(100dvh - var(--nav-height)) !important;
+    min-height: calc(100dvh - var(--nav-height)) !important;
+    overflow: hidden !important;
+  }
+
+  .groups-page-container {
+    padding: 0 !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
   .desktop-only-banner {
     display: none !important;
   }

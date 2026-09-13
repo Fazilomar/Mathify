@@ -486,7 +486,7 @@ export function GroupsPage() {
         {/* Left Column: Active Rooms Directory (Off-Canvas Drawer on Mobile) */}
         <aside
           className={`groups-sidebar-col card ${sidebarOpen ? 'open' : ''}`}
-          style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D' }}
+          style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D', minHeight: 0 }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -524,7 +524,7 @@ export function GroupsPage() {
             />
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {loading ? (
               <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <span className="material-symbols-outlined spin" style={{ fontSize: '28px', color: 'var(--primary)', marginBottom: '8px' }}>progress_activity</span>
@@ -594,11 +594,11 @@ export function GroupsPage() {
         {/* Right Column: Selected Group Live Discussion & Collaboration */}
         <div
           className="groups-chat-col card"
-          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#18181D' }}
+          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', backgroundColor: '#18181D', minHeight: 0 }}
         >
           {activeGroup ? (
             <>
-              <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                   <button
                     type="button"
@@ -817,7 +817,7 @@ export function GroupsPage() {
                 );
               })()}
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {displayedMessages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>forum</span>
@@ -1002,7 +1002,7 @@ export function GroupsPage() {
                 <div ref={chatScrollRef} />
               </div>
 
-              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
                   <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>LaTeX:</span>
                   {quickSymbols.map((s) => (
