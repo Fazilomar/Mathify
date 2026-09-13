@@ -58,6 +58,32 @@ class GroupMembership(models.Model):
         return f"{self.user.username} in {self.group.name} ({self.role})"
 
 
+class GroupJoinRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_DECLINED = 'declined'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_DECLINED, 'Declined'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='group_join_requests')
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='join_requests')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'group'], name='unique_group_join_request'),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.group.name} ({self.status})"
+
+
 class Message(models.Model):
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages'
@@ -142,4 +168,4 @@ class CallSignal(models.Model):
         ordering = ['created_at']
 
     def __str__(self):
-        return f"Signal {self.signal_type} from {self.sender.username} to {self.recipient.username if self.recipient else 'All'}"
+        return f"Signal {self.signal_type} from {self.sender.username} to {self.recipient.username if self.recipient else 'All'}"

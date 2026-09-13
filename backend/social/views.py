@@ -2,8 +2,8 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Group, GroupMembership, Message, Call, CallSignal
-from .serializers import GroupSerializer, GroupMembershipSerializer, MessageSerializer, CallSerializer
+from .models import Group, GroupMembership, GroupJoinRequest, Message, Call, CallSignal
+from .serializers import GroupSerializer, GroupMembershipSerializer, GroupJoinRequestSerializer, MessageSerializer, CallSerializer
 
 
 def _sync_call_ended(call, user=None):
@@ -94,6 +94,15 @@ class GroupViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
         group = self.get_object()
+        if group.is_private and not group.memberships.filter(user=request.user).exists():
+            join_request, created = GroupJoinRequest.objects.get_or_create(user=request.user, group=group)
+            if join_request.status == GroupJoinRequest.STATUS_APPROVED:
+                return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not created and join_request.status == GroupJoinRequest.STATUS_PENDING:
+                return Response(GroupJoinRequestSerializer(join_request).data, status=status.HTTP_200_OK)
+            join_request.status = GroupJoinRequest.STATUS_PENDING
+            join_request.save(update_fields=['status', 'updated_at'])
+            return Response(GroupJoinRequestSerializer(join_request).data, status=status.HTTP_201_CREATED)
         membership, created = GroupMembership.objects.get_or_create(
             user=request.user, group=group
         )
@@ -107,12 +116,58 @@ class GroupViewSet(viewsets.ModelViewSet):
         GroupMembership.objects.filter(user=request.user, group=group).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        group = self.get_object()
+        if not group.memberships.filter(user=request.user).exists() and group.created_by_id != request.user.id:
+            return Response({'detail': 'Join the group to view its members.'}, status=status.HTTP_403_FORBIDDEN)
+        memberships = group.memberships.select_related('user', 'user__profile').all()
+        return Response(GroupMembershipSerializer(memberships, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def join_requests(self, request, pk=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can manage requests.'}, status=status.HTTP_403_FORBIDDEN)
+        requests = group.join_requests.select_related('user', 'user__profile').filter(status=GroupJoinRequest.STATUS_PENDING)
+        return Response(GroupJoinRequestSerializer(requests, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path=r'join-requests/(?P<request_id>[^/.]+)/approve')
+    def approve_join_request(self, request, pk=None, request_id=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can approve requests.'}, status=status.HTTP_403_FORBIDDEN)
+        join_request = group.join_requests.filter(id=request_id, status=GroupJoinRequest.STATUS_PENDING).first()
+        if not join_request:
+            return Response({'detail': 'Pending request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        GroupMembership.objects.get_or_create(user=join_request.user, group=group)
+        join_request.status = GroupJoinRequest.STATUS_APPROVED
+        join_request.save(update_fields=['status', 'updated_at'])
+        return Response(GroupJoinRequestSerializer(join_request).data)
+
+    @action(detail=True, methods=['post'], url_path=r'join-requests/(?P<request_id>[^/.]+)/decline')
+    def decline_join_request(self, request, pk=None, request_id=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can decline requests.'}, status=status.HTTP_403_FORBIDDEN)
+        join_request = group.join_requests.filter(id=request_id, status=GroupJoinRequest.STATUS_PENDING).first()
+        if not join_request:
+            return Response({'detail': 'Pending request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        join_request.status = GroupJoinRequest.STATUS_DECLINED
+        join_request.save(update_fields=['status', 'updated_at'])
+        return Response(GroupJoinRequestSerializer(join_request).data)
+
     @action(detail=True, methods=['get', 'post'])
     def messages(self, request, pk=None):
         group = self.get_object()
+        if not group.memberships.filter(user=request.user).exists() and group.created_by_id != getattr(request.user, 'id', None):
+            return Response({'detail': 'Join this group to access its chat.'}, status=status.HTTP_403_FORBIDDEN)
         if request.method == 'POST':
             content = request.data.get('content', '').strip()
-            if not content:
+            media = request.FILES.get('media')
+            if media and media.size > 50 * 1024 * 1024:
+                return Response({'detail': 'Attachments must be 50 MB or smaller.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not content and not media:
                 return Response({'detail': 'Message content cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
             if not request.user.is_authenticated:
                 return Response({'detail': 'Authentication required to post in study groups.'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -122,7 +177,8 @@ class GroupViewSet(viewsets.ModelViewSet):
             msg = Message.objects.create(
                 sender=request.user,
                 group=group,
-                content=content
+                content=content,
+                media=media,
             )
             return Response(MessageSerializer(msg).data, status=status.HTTP_201_CREATED)
 

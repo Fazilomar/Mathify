@@ -128,6 +128,7 @@ export function RegisterPage() {
 
   return (
     <div
+      className="auth-shell"
       style={{
         minHeight: 'calc(100vh - 120px)',
         display: 'flex',
@@ -259,7 +260,7 @@ export function RegisterPage() {
               <label id="role-picker-label" style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
                 Select Your Role
               </label>
-              <div role="radiogroup" aria-labelledby="role-picker-label" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="mobile-form-grid" role="radiogroup" aria-labelledby="role-picker-label" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {/* Student Option */}
                 <div
                   role="radio"
@@ -365,7 +366,7 @@ export function RegisterPage() {
             </div>
 
             {/* Password & Confirm Password */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label htmlFor="reg-password" style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Password
@@ -516,7 +517,7 @@ export function RegisterPage() {
             {/* --- Student Specific Fields --- */}
             {role === 'student' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Department / Major
@@ -573,7 +574,7 @@ export function RegisterPage() {
             {/* --- Host / Organizer / Lecturer Specific Fields --- */}
             {role === 'host' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Organization / Institution

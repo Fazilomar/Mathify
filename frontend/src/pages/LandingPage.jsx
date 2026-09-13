@@ -5,6 +5,7 @@ import MathRenderer from '../components/common/MathRenderer';
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
+  const [activeIdx, setActiveIdx] = useState(0);
 
   if (isAuthenticated) {
     return <Navigate to="/feed" replace />;
@@ -42,7 +43,6 @@ export function LandingPage() {
     },
   ];
 
-  const [activeIdx, setActiveIdx] = useState(0);
   const activeTheorem = theorems[activeIdx];
 
   const pillars = [
@@ -77,7 +77,7 @@ export function LandingPage() {
   ];
 
   return (
-    <div style={{ maxWidth: '980px', margin: '0 auto', width: '100%', padding: '0 20px 80px' }}>
+    <div className="landing-shell" style={{ maxWidth: '980px', margin: '0 auto', width: '100%', padding: '0 20px 80px' }}>
       {/* Hero Section */}
       <section style={{ textAlign: 'center', padding: '56px 0 44px' }}>
         <div

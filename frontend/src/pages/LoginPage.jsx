@@ -47,6 +47,7 @@ export function LoginPage() {
 
   return (
     <div
+      className="auth-shell"
       style={{
         minHeight: 'calc(100vh - 120px)',
         display: 'flex',

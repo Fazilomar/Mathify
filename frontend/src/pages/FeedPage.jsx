@@ -224,45 +224,50 @@ export function FeedPage() {
   };
 
   const filteredPosts = posts.filter((p) => {
+    const categoryValue = String(p.category?.slug || p.category || p.topic || '').toLowerCase();
+    const categoryMatches = activeCategory === 'all' || !categoryValue || categoryValue.includes(activeCategory);
     if (searchTerm) {
       const authorName = p.author_username || (typeof p.author === 'string' ? p.author : p.author?.username) || '';
       const matchContent = p.content?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchLatex = p.latex_content?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAuthor = authorName.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchContent || matchLatex || matchAuthor;
+      return categoryMatches && (matchContent || matchLatex || matchAuthor);
     }
-    return true;
+    return categoryMatches;
   });
 
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-      {/* Category Pills */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          paddingBottom: '12px',
-          marginBottom: '16px',
-          scrollbarWidth: 'none',
-        }}
-      >
+    <div className="feed-shell">
+      <section className="feed-hero">
+        <div>
+          <div className="feed-kicker"><span className="material-symbols-outlined">auto_awesome</span> The Mathify Commons</div>
+          <h1>Ideas worth proving.</h1>
+          <p>Follow the questions, proofs, and discoveries shaping our mathematical community.</p>
+        </div>
+        <div className="feed-hero-mark" aria-hidden="true">∫</div>
+      </section>
+
+      <div className="feed-toolbar">
+        <div className="feed-search-wrap">
+          <span className="material-symbols-outlined">search</span>
+          <input
+            className="feed-search"
+            type="search"
+            placeholder="Search ideas, authors, or equations"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && <button className="feed-clear-search" type="button" onClick={() => setSearchTerm('')} aria-label="Clear search">close</button>}
+        </div>
+        <div className="feed-count"><strong>{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'publication' : 'publications'}</div>
+      </div>
+
+      <div className="feed-categories" role="tablist" aria-label="Feed categories">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            style={{
-              padding: '7px 14px',
-              borderRadius: '999px',
-              fontSize: '13px',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              border: activeCategory === cat.id ? '1px solid var(--primary-border)' : '1px solid var(--border)',
-              backgroundColor: activeCategory === cat.id ? 'var(--primary-subtle)' : 'rgba(255, 255, 255, 0.03)',
-              color: activeCategory === cat.id ? 'var(--primary)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className={`feed-category ${activeCategory === cat.id ? 'is-active' : ''}`}
           >
             {cat.label}
           </button>
@@ -272,7 +277,7 @@ export function FeedPage() {
       {/* Post Composer */}
       {isAuthenticated && (
         <div
-          className="card"
+          className="card feed-composer"
           style={{
             padding: '20px',
             marginBottom: '24px',
@@ -478,7 +483,7 @@ export function FeedPage() {
             );
 
             return (
-              <article key={post.id} className="glass-card" style={{ padding: '20px' }}>
+              <article key={post.id} className="glass-card feed-post" style={{ padding: '20px' }}>
                 {/* Post Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

@@ -24,6 +24,7 @@ class ResourceSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     bookmark_count = serializers.ReadOnlyField()
     is_bookmarked = serializers.SerializerMethodField()
+    MAX_FILE_BYTES = 50 * 1024 * 1024
 
     class Meta:
         model = Resource
@@ -39,6 +40,11 @@ class ResourceSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.bookmarks.filter(user=request.user).exists()
         return False
+
+    def validate_file(self, value):
+        if value and value.size > self.MAX_FILE_BYTES:
+            raise serializers.ValidationError('Files must be 50 MB or smaller.')
+        return value
 
 
 class BookmarkSerializer(serializers.ModelSerializer):

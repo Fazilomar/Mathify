@@ -398,6 +398,9 @@ class ChatAPIView(APIView):
     def post(self, request):
         from rest_framework.response import Response
         user_message = request.data.get('message', '').strip() or request.data.get('content', '').strip()
+        file_data = request.data.get('file_data') or ''
+        file_name = request.data.get('file_name') or ''
+        file_mime = request.data.get('file_mime') or ''
         if not user_message:
             return Response({'error': 'Message content cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -420,10 +423,21 @@ class ChatAPIView(APIView):
 
         if session:
             SessionMessage.objects.create(
-                session=session, role=SessionMessage.ROLE_USER, content=user_message
+                session=session,
+                role=SessionMessage.ROLE_USER,
+                content=user_message,
+                file_data=file_data,
+                file_name=file_name,
+                file_mime=file_mime,
             )
             history = [
-                {'role': m.role, 'content': m.content}
+                {
+                    'role': m.role,
+                    'content': m.content,
+                    'file_data': m.file_data,
+                    'file_name': m.file_name,
+                    'file_mime': m.file_mime,
+                }
                 for m in SessionMessage.objects.filter(session=session)
             ]
             helper = ChatSessionViewSet()
@@ -472,4 +486,4 @@ class ChatAPIView(APIView):
                 'reply': ai_reply,
                 'content': ai_reply,
                 'session_id': None,
-            })
+            })
