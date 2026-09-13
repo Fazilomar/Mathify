@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
 import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
@@ -52,13 +52,21 @@ export function GroupsPage() {
   const [newRoomTopic, setNewRoomTopic] = useState('');
   const [newRoomType, setNewRoomType] = useState('study');
   const [newRoomPrivate, setNewRoomPrivate] = useState(false);
+  const [newRoomAvatar, setNewRoomAvatar] = useState(null);
+  const [newRoomAvatarPreview, setNewRoomAvatarPreview] = useState(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
 
-  const isGroupMember = Boolean(
-    activeGroup?.is_member ||
+  const groupAvatarInputRef = useRef(null);
+
+  const isGroupCreator = Boolean(
     (user && Number(activeGroup?.created_by_id) === Number(user.id)) ||
     (user && activeGroup?.created_by === user.username) ||
     (activeGroup?.created_by_id && Number(activeGroup?.created_by_id) === Number(API.getCurrentUserId()))
+  );
+
+  const isGroupMember = Boolean(
+    activeGroup?.is_member || isGroupCreator
   );
 
   const chatScrollRef = useRef(null);
@@ -535,18 +543,58 @@ export function GroupsPage() {
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
   };
 
+  const handleGroupAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeGroup?.id) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, WEBP, GIF).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Room picture must be smaller than 10 MB.');
+      return;
+    }
+
+    try {
+      setUploadingGroupAvatar(true);
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await API.patch(`/api/social/groups/${activeGroup.id}/`, formData);
+      if (res.ok) {
+        const updated = await res.json();
+        setActiveGroup((prev) => (prev ? { ...prev, avatar: updated.avatar } : prev));
+        setGroups((prev) =>
+          prev.map((g) => (g.id === activeGroup.id ? { ...g, avatar: updated.avatar } : g))
+        );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.avatar ? (Array.isArray(err.avatar) ? err.avatar.join(' ') : err.avatar) : (err.detail || 'Failed to update group picture.'));
+      }
+    } catch (err) {
+      console.error('Failed to update group picture:', err);
+      alert('Network error while updating group picture.');
+    } finally {
+      setUploadingGroupAvatar(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newRoomName.trim()) return;
     setCreatingRoom(true);
 
     try {
-      const res = await API.post('/api/social/groups/', {
-        name: newRoomName.trim(),
-        description: newRoomTopic.trim(),
-        group_type: newRoomType,
-        is_private: newRoomPrivate,
-      });
+      const formData = new FormData();
+      formData.append('name', newRoomName.trim());
+      if (newRoomTopic.trim()) formData.append('description', newRoomTopic.trim());
+      formData.append('group_type', newRoomType);
+      formData.append('is_private', newRoomPrivate);
+      if (newRoomAvatar) formData.append('avatar', newRoomAvatar);
+
+      const res = await API.post('/api/social/groups/', formData);
       if (res.ok) {
         const newGroup = await res.json();
         setGroups((prev) => [newGroup, ...prev]);
@@ -555,9 +603,11 @@ export function GroupsPage() {
         setNewRoomName('');
         setNewRoomTopic('');
         setNewRoomPrivate(false);
+        setNewRoomAvatar(null);
+        setNewRoomAvatarPreview(null);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Could not create study room. Ensure you are signed in.');
+        alert(err.detail || (err.avatar ? 'Invalid room picture.' : 'Could not create study room. Ensure you are signed in.'));
       }
     } catch {
       alert('Network error while establishing study room.');
@@ -696,9 +746,34 @@ export function GroupsPage() {
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '14px', color: isSelected ? 'var(--primary)' : 'var(--text)', lineHeight: 1.3 }}>
-                        {g.name}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(229, 169, 60, 0.14)',
+                            border: '1px solid rgba(229, 169, 60, 0.28)',
+                            color: 'var(--primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {g.avatar ? (
+                            <img src={resolveMediaUrl(g.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            (g.name?.[0] || '#').toUpperCase()
+                          )}
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: isSelected ? 'var(--primary)' : 'var(--text)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {g.name}
+                        </div>
                       </div>
                       <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', backgroundColor: 'rgba(229, 169, 60, 0.12)', border: '1px solid var(--primary-border)', color: 'var(--primary)', fontWeight: 600, textTransform: 'capitalize', flexShrink: 0, marginLeft: '6px' }}>
                         {g.group_type || 'Study'}
@@ -756,10 +831,12 @@ export function GroupsPage() {
 
                   {/* Group Display Picture */}
                   <div
+                    onClick={() => isGroupCreator && groupAvatarInputRef.current?.click()}
+                    title={isGroupCreator ? "Click to change room picture" : activeGroup.name}
                     style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '10px',
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '11px',
                       backgroundColor: 'rgba(229, 169, 60, 0.14)',
                       border: '1px solid rgba(229, 169, 60, 0.3)',
                       color: 'var(--primary)',
@@ -770,14 +847,50 @@ export function GroupsPage() {
                       fontWeight: 800,
                       flexShrink: 0,
                       overflow: 'hidden',
+                      position: 'relative',
+                      cursor: isGroupCreator ? 'pointer' : 'default',
                     }}
                   >
                     {activeGroup.avatar ? (
-                      <img src={activeGroup.avatar} alt={activeGroup.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={resolveMediaUrl(activeGroup.avatar)} alt={activeGroup.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       (activeGroup.name?.[0] || '#').toUpperCase()
                     )}
+
+                    {isGroupCreator && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: uploadingGroupAvatar ? 1 : 0,
+                          transition: 'opacity 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                        onMouseLeave={(e) => { if (!uploadingGroupAvatar) e.currentTarget.style.opacity = '0'; }}
+                      >
+                        <span
+                          className={`material-symbols-outlined ${uploadingGroupAvatar ? 'spinning' : ''}`}
+                          style={{ fontSize: '19px', color: '#fff' }}
+                        >
+                          {uploadingGroupAvatar ? 'sync' : 'photo_camera'}
+                        </span>
+                      </div>
+                    )}
                   </div>
+                  {isGroupCreator && (
+                    <input
+                      ref={groupAvatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleGroupAvatarUpload}
+                      style={{ display: 'none' }}
+                      disabled={uploadingGroupAvatar}
+                    />
+                  )}
 
                   {/* Group Name & Members Preview */}
                   <div style={{ minWidth: 0, overflow: 'hidden' }}>
@@ -1011,6 +1124,21 @@ export function GroupsPage() {
                           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>group</span>
                           <span>View Members ({activeGroup.member_count || members.length || 1})</span>
                         </div>
+
+                        {isGroupCreator && (
+                          <div
+                            onClick={() => {
+                              setOptionsMenuOpen(false);
+                              groupAvatarInputRef.current?.click();
+                            }}
+                            style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>photo_camera</span>
+                            <span>Change Room Picture</span>
+                          </div>
+                        )}
 
                         {activeGroup.created_by_id === API.getCurrentUserId() && activeGroup.is_private && (
                           <div
@@ -1567,6 +1695,74 @@ export function GroupsPage() {
             </div>
 
             <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Room Picture Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '54px',
+                    height: '54px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(229, 169, 60, 0.12)',
+                    border: '1px dashed rgba(229, 169, 60, 0.4)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    fontWeight: 800,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}
+                >
+                  {newRoomAvatarPreview ? (
+                    <img src={newRoomAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (newRoomName?.[0] || '#').toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <label
+                    className="btn-secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add_photo_alternate</span>
+                    {newRoomAvatar ? 'Change Picture' : 'Upload Picture'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setNewRoomAvatar(file);
+                          setNewRoomAvatarPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                  {newRoomAvatar && (
+                    <button
+                      type="button"
+                      onClick={() => { setNewRoomAvatar(null); setNewRoomAvatarPreview(null); }}
+                      style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '11.5px', marginLeft: '8px', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                  <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '3px' }}>
+                    Optional room picture or badge (PNG, JPG up to 10MB)
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>Room Name *</label>
                 <input

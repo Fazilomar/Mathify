@@ -18,7 +18,7 @@ def _sync_call_ended(call, user=None):
 
     if call.group:
         group = call.group
-        # Clear active_call on group if it pointed to this call
+        
         if getattr(group, 'active_call_id', None) == call.id:
             group.active_call = None
             group.save(update_fields=['active_call'])
@@ -30,7 +30,7 @@ def _sync_call_ended(call, user=None):
         )
         ended_content = f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{initiator_name}:ended:"
 
-        # Find any existing [MEETING] messages for this call ID or meeting_code
+           
         prefix = f"[MEETING]:{call.id}:"
         code_sub = f":{call.meeting_code}:"
         existing_msgs = list(group.messages.filter(
@@ -38,17 +38,17 @@ def _sync_call_ended(call, user=None):
         ).order_by('id'))
 
         if existing_msgs:
-            # Update the latest message to ended
+           
             last_msg = existing_msgs[-1]
             if last_msg.content != ended_content:
                 last_msg.content = ended_content
                 last_msg.save(update_fields=['content'])
-            # Delete any extra duplicate messages created previously for this same meeting
+           
             if len(existing_msgs) > 1:
                 duplicate_ids = [m.id for m in existing_msgs[:-1]]
                 group.messages.filter(id__in=duplicate_ids).delete()
         else:
-            # Create exactly one ended card
+           
             group.messages.create(
                 sender=user if (user and getattr(user, 'is_authenticated', False)) else (call.initiator or None),
                 content=ended_content
@@ -109,6 +109,14 @@ class GroupViewSet(viewsets.ModelViewSet):
         if not created:
             return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(GroupMembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        group = self.get_object()
+        is_creator = group.created_by_id == request.user.id
+        is_admin_member = group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+        if not (is_creator or is_admin_member or request.user.is_staff):
+            return Response({'detail': 'Only the group creator or admin can update room details.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         group = self.get_object()
