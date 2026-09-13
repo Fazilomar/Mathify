@@ -114,7 +114,7 @@ export function MathRenderer({ content, displayMode = false, className = '' }) {
     let finalHtml = formattedParts.join('');
 
     tokens.forEach((rendered, idx) => {
-      finalHtml = finalHtml.replace(`%%%MATH_TOKEN_${idx}%%%`, rendered);
+      finalHtml = finalHtml.replaceAll(`%%%MATH_TOKEN_${idx}%%%`, () => rendered);
     });
 
     return finalHtml;

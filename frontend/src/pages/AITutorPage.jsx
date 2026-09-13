@@ -103,8 +103,44 @@ export function AITutorPage() {
     event.target.value = '';
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      window.alert('Please choose a file smaller than 10 MB.');
+    // Supported Gemini inlineData types
+    const validBinaryTypes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'
+    ];
+    const isTextFile = /\.(txt|csv|py|tex|json|md)$/i.test(file.name) || file.type.startsWith('text/');
+
+    // For plain text / code files, read directly as text and append to composer
+    if (isTextFile) {
+      if (file.size > 1024 * 1024) {
+        window.alert('Please choose a text document smaller than 1 MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const fileContent = String(reader.result || '');
+        setInputMessage((prev) =>
+          prev
+            ? `${prev}\n\n[File: ${file.name}]\n\`\`\`\n${fileContent}\n\`\`\``
+            : `[File: ${file.name}]\n\`\`\`\n${fileContent}\n\`\`\`\n`
+        );
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    // Binary file: image or PDF
+    const mime = file.type || '';
+    const isPdf = /\.pdf$/i.test(file.name);
+    const resolvedMime = isPdf ? 'application/pdf' : mime;
+
+    if (!validBinaryTypes.includes(resolvedMime)) {
+      window.alert('Supported file formats for mathematical AI analysis are PNG, JPEG, WEBP, PDF, and code/text files (.txt, .tex, .py, .csv).');
+      return;
+    }
+
+    // Strictly limit binary files to 3.5 MB so Base64 payloads remain within Vercel's 4.5 MB ceiling
+    if (file.size > 3.5 * 1024 * 1024) {
+      window.alert('Please choose a file smaller than 3.5 MB for the AI reasoning engine.');
       return;
     }
 
@@ -112,7 +148,7 @@ export function AITutorPage() {
     reader.onload = () => {
       setSelectedAttachment({
         name: file.name,
-        mime: file.type || 'application/octet-stream',
+        mime: resolvedMime,
         data: String(reader.result).split(',')[1] || '',
       });
     };
@@ -568,6 +604,12 @@ export function AITutorPage() {
                           </span>
                         )}
                       </div>
+                      {m.file_name && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', backgroundColor: 'rgba(255, 255, 255, 0.06)', border: '1px solid var(--border)', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px', color: 'var(--primary)' }}>attach_file</span>
+                          <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.file_name}</span>
+                        </div>
+                      )}
                       {m.content ? (
                         <div style={{ position: 'relative' }}>
                           <MathRenderer content={m.content} />
@@ -638,11 +680,11 @@ export function AITutorPage() {
               className="ai-tutor-input-row"
               style={{ display: 'flex', gap: '10px' }}
             >
-              <label className="ai-tutor-attach-button" title="Attach a file, image, or video">
+              <label className="ai-tutor-attach-button" title="Attach a diagram, PDF, or code">
                 <span className="material-symbols-outlined">add</span>
                 <input
                   type="file"
-                  accept="image/*,video/*,.pdf,.txt,.csv,.doc,.docx"
+                  accept="image/png,image/jpeg,image/webp,application/pdf,.txt,.csv,.py,.tex"
                   onChange={handleAttachmentChange}
                   hidden
                 />

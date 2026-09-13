@@ -415,6 +415,12 @@ class MessageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
 
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.method not in permissions.SAFE_METHODS and obj.sender != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only modify or delete messages you authored.")
+
     @action(detail=False, methods=['get'])
     def conversations(self, request):
         from django.db.models import Q

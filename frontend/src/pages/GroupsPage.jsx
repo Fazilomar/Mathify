@@ -1116,7 +1116,7 @@ export function GroupsPage() {
                   </button>
                 </form>
                 {chatAttachment && <div className="group-selected-file"><span className="material-symbols-outlined">attach_file</span>{chatAttachment.name}<button type="button" onClick={() => setChatAttachment(null)}>close</button></div>}
-              </div>}
+              </div>
             </>
           ) : (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '40px 20px' }}>

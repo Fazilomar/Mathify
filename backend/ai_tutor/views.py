@@ -191,10 +191,15 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 timeout_val = config('AI_TIMEOUT_SECONDS', default=15, cast=int)
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={gemini_key}"
                 contents = []
-                for m in history:
+                allowed_mimes = ('image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf')
+                last_attachment_index = max(
+                    (i for i, m in enumerate(history) if m.get('file_data') and m.get('file_mime') in allowed_mimes),
+                    default=-1
+                )
+                for idx, m in enumerate(history):
                     role = 'model' if m['role'] == 'assistant' else 'user'
                     parts = []
-                    if m.get('file_data') and m.get('file_mime'):
+                    if idx == last_attachment_index and m.get('file_data') and m.get('file_mime') in allowed_mimes:
                         parts.append({
                             "inlineData": {
                                 "mimeType": m['file_mime'],
@@ -302,10 +307,15 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 timeout_val = config('AI_TIMEOUT_SECONDS', default=15, cast=int)
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 contents = []
-                for m in history:
+                allowed_mimes = ('image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf')
+                last_attachment_index = max(
+                    (i for i, m in enumerate(history) if m.get('file_data') and m.get('file_mime') in allowed_mimes),
+                    default=-1
+                )
+                for idx, m in enumerate(history):
                     role = 'model' if m['role'] == 'assistant' else 'user'
                     parts = []
-                    if m.get('file_data') and m.get('file_mime'):
+                    if idx == last_attachment_index and m.get('file_data') and m.get('file_mime') in allowed_mimes:
                         parts.append({
                             "inlineData": {
                                 "mimeType": m['file_mime'],
@@ -494,7 +504,13 @@ class ChatAPIView(APIView):
             # Guest session fallback
             mock_session = ChatSession(title="Guest Session")
             helper = ChatSessionViewSet()
-            history = [{'role': 'user', 'content': user_message}]
+            history = [{
+                'role': 'user',
+                'content': user_message,
+                'file_data': file_data,
+                'file_name': file_name,
+                'file_mime': file_mime,
+            }]
 
             if want_stream:
                 def stream_gen():

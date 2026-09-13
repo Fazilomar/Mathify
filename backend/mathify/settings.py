@@ -97,6 +97,8 @@ if DATABASE_URL:
             }
         }
 else:
+    if IS_VERCEL:
+        print("[CRITICAL PRODUCTION WARNING] Running on Vercel without DATABASE_URL! Ephemeral SQLite in /tmp will cause user session disconnects across serverless lambda containers. Please supply your Supabase DATABASE_URL in Vercel Environment Variables.")
     sqlite_file = config('SQLITE_DB_NAME', default='db.sqlite3')
     sqlite_path = Path('/tmp') / sqlite_file if IS_VERCEL else BASE_DIR / sqlite_file
     DATABASES = {
@@ -151,6 +153,10 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
 
+# Request body and upload sizes (prevent 400 RequestDataTooBig on valid images/attachments)
+DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)  # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)  # 10 MB
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django REST Framework & Throttling
@@ -176,6 +182,7 @@ REST_FRAMEWORK = {
         'ai_tutor': config('THROTTLE_AI_TUTOR_RATE', default='30/minute'),
         'feed_post': config('THROTTLE_FEED_RATE', default='25/minute'),
         'score_award': config('THROTTLE_SCORE_RATE', default='15/hour'),
+        'competition_answer': config('THROTTLE_COMPETITION_ANSWER_RATE', default='30/minute'),
     }
 }
 

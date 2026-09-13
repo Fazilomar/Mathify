@@ -85,11 +85,22 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Full user profile including private email — strictly for the authenticated user's own profile (/me/)."""
     profile = ProfileSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
         fields = ['id', 'email', 'username', 'first_name', 'last_name', 'profile']
+        read_only_fields = ['id']
+
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    """Safe public serializer that protects the user's private email address from scrapers."""
+    profile = ProfileSerializer(read_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'first_name', 'last_name', 'profile']
         read_only_fields = ['id']
 
 

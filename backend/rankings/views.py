@@ -101,6 +101,16 @@ class CompetitionViewSet(viewsets.ModelViewSet):
                 'points_awarded': submission.points_awarded
             })
 
+        # Academic Integrity: Prevent automated brute-forcing (max 10 derivation attempts per question per hour)
+        attempt_key = f"q_attempts_{request.user.id}_{question.id}"
+        attempts = cache.get(attempt_key, 0)
+        if attempts >= 10:
+            return Response({
+                'detail': 'Maximum derivation attempts reached for this question (10/10). Please consult the theorems in Library or research with the AI Tutor before attempting again.',
+                'correct': False,
+                'rate_limited': True,
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
         # Answer comparison: normalize whitespace, remove formatting characters and case
         def normalize(val):
             return ''.join(str(val).lower().replace('$', '').replace('\\', '').replace(' ', ''))
@@ -111,6 +121,7 @@ class CompetitionViewSet(viewsets.ModelViewSet):
 
         points = 0
         if is_correct:
+            cache.delete(attempt_key)
             points = question.points
             submission.points_awarded = points
 
@@ -137,6 +148,8 @@ class CompetitionViewSet(viewsets.ModelViewSet):
 
                 # Invalidate cached leaderboard
                 cache.delete(f"leaderboard_{Score.PERIOD_ALL_TIME}")
+        else:
+            cache.set(attempt_key, attempts + 1, timeout=3600)
 
         submission.save()
 
@@ -148,10 +161,12 @@ class CompetitionViewSet(viewsets.ModelViewSet):
                 'detail': f'Brilliant! Correct solution. +{points} Axiom Points awarded.'
             })
         else:
+            remaining = 10 - (attempts + 1)
             return Response({
                 'correct': False,
                 'points_awarded': 0,
-                'detail': 'Incorrect answer. Re-evaluate your derivation and try again.'
+                'attempts_remaining': remaining,
+                'detail': f'Incorrect answer. Re-evaluate your derivation and try again ({remaining} attempts remaining).'
             })
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
@@ -248,9 +263,7 @@ class ScoreViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ScoreSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Score.objects.all()
-    throttle_scope = 'score_award'
-
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def award_points(self, request):
         competition_id = request.data.get('competition_id')
         if not competition_id:
