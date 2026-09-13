@@ -8,7 +8,9 @@ export function Layout({ children }) {
   const isAuthPage = ['/login', '/register', '/oauth/callback'].some((path) =>
     location.pathname.startsWith(path)
   );
-  const isFullHeightPage = location.pathname.startsWith('/tutor');
+  const isFullHeightPage = ['/tutor', '/groups'].some((path) =>
+    location.pathname.startsWith(path)
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%' }}>

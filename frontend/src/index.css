@@ -802,103 +802,112 @@ button, input, textarea, select {
   display: none;
 }
 
-/* Groups Page Mobile Segmented Tabs & Controls */
-.groups-mobile-tabs {
-  display: none;
-}
-
-.groups-mobile-back-btn {
+/* Groups Page Mobile Off-Canvas Drawer & Controls */
+.groups-sidebar-toggle,
+.groups-sidebar-close,
+.groups-sidebar-backdrop {
   display: none;
 }
 
 @media (max-width: 860px) {
-  /* Banner on mobile */
-  .groups-banner-card {
-    padding: 14px 16px !important;
-    margin-bottom: 12px !important;
-    border: 1px solid var(--border-subtle) !important;
-  }
-
-  .groups-banner-card h1 {
-    font-size: 18px !important;
-    margin-bottom: 2px !important;
-  }
-
-  .groups-banner-card p {
+  .desktop-only-banner {
     display: none !important;
   }
 
-  /* Segmented switch for mobile */
-  .groups-mobile-tabs {
+  .groups-shell {
+    height: 100% !important;
     display: flex !important;
-    gap: 8px;
-    margin-top: 14px;
-    background: rgba(0, 0, 0, 0.25);
-    padding: 4px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
+    flex-direction: column !important;
+    min-height: 0 !important;
   }
 
-  .groups-mobile-tab-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    font-size: 12.5px;
-    font-weight: 600;
-    border-radius: 6px;
-    border: none;
-    background: transparent;
-    color: var(--text-subtle);
-    cursor: pointer;
-    transition: all 0.15s ease;
-  }
-
-  .groups-mobile-tab-btn.active {
-    background: var(--primary-subtle);
-    color: var(--primary);
-    border: 1px solid var(--primary-border);
-  }
-
-  /* Responsive dual-pane to master-detail */
-  .groups-layout {
-    grid-template-columns: 1fr !important;
+  .groups-shell .groups-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
     gap: 0 !important;
-    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 120px);
-    height: auto !important;
+    position: relative !important;
   }
 
-  .groups-sidebar-col.mobile-pane-hidden,
-  .groups-chat-col.mobile-pane-hidden {
-    display: none !important;
+  .groups-sidebar-col {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 310px !important;
+    max-width: 86vw !important;
+    height: 100% !important;
+    z-index: 1050 !important;
+    background: #141418 !important;
+    border-right: 1px solid var(--border) !important;
+    border-radius: 0 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 36px rgba(0, 0, 0, 0.85);
   }
 
-  .groups-sidebar-col.mobile-pane-active,
-  .groups-chat-col.mobile-pane-active {
+  .groups-sidebar-col.open {
+    transform: translateX(0) !important;
     display: flex !important;
-    width: 100% !important;
-    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - 130px);
-    border: 1px solid var(--border-subtle) !important;
   }
 
-  .groups-mobile-back-btn {
+  .groups-sidebar-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(0, 0, 0, 0.72) !important;
+    z-index: 1040 !important;
+    backdrop-filter: blur(4px);
+  }
+
+  .groups-sidebar-toggle {
     display: inline-flex !important;
     align-items: center;
-    gap: 4px;
-    padding: 5px 10px;
-    border-radius: 6px;
+    gap: 5px;
+    padding: 6px 10px;
+    border-radius: 7px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--border);
     color: var(--text);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .groups-room-count-pill {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: var(--primary-subtle);
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .groups-sidebar-close {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-subtle);
+    cursor: pointer;
+    padding: 4px;
   }
 
   .groups-chat-col {
-    padding: 14px 14px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 14px !important;
+    background: #111115 !important;
+    flex: 1 1 100% !important;
   }
 }
 
