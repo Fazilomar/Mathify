@@ -108,7 +108,6 @@ else:
         }
     }
 
-# Dynamic Caching Layer (Redis if REDIS_URL provided, else High-Performance LocMemCache)
 REDIS_URL = config('REDIS_URL', default=None)
 if REDIS_URL:
     CACHES = {

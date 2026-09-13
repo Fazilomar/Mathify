@@ -2,8 +2,22 @@ from rest_framework import serializers
 from .models import Formula, Creation
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class FormulaSerializer(serializers.ModelSerializer):
-    created_by = serializers.StringRelatedField(read_only=True)
+    created_by = serializers.SerializerMethodField()
     created_by_id = serializers.PrimaryKeyRelatedField(
         queryset=__import__('accounts.models', fromlist=['CustomUser']).CustomUser.objects.all(),
         source='created_by',
@@ -12,6 +26,9 @@ class FormulaSerializer(serializers.ModelSerializer):
     title = serializers.CharField(write_only=True, required=False)
     latex_code = serializers.CharField(write_only=True, required=False)
     latex = serializers.CharField(source='latex_expression', read_only=True)
+
+    def get_created_by(self, obj):
+        return _safe_user_name(obj.created_by)
 
     class Meta:
         model = Formula
@@ -55,7 +72,7 @@ class FormulaSerializer(serializers.ModelSerializer):
 
 
 class CreationSerializer(serializers.ModelSerializer):
-    author = serializers.StringRelatedField(read_only=True)
+    author = serializers.SerializerMethodField()
     author_id = serializers.PrimaryKeyRelatedField(
         queryset=__import__('accounts.models', fromlist=['CustomUser']).CustomUser.objects.all(),
         source='author',
@@ -66,6 +83,9 @@ class CreationSerializer(serializers.ModelSerializer):
         queryset=Formula.objects.all(), source='formulas',
         many=True, write_only=True, required=False
     )
+
+    def get_author(self, obj):
+        return _safe_user_name(obj.author)
 
     class Meta:
         model = Creation

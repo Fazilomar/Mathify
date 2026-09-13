@@ -482,7 +482,7 @@ export function CompetitionsPage() {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                      <span>Host: {c.created_by || 'Organizer'}</span>
+                      <span>Host: {(c.created_by || 'Organizer').split('@')[0]}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', fontWeight: 600 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>quiz</span>
                         {qCount} question{qCount !== 1 ? 's' : ''}

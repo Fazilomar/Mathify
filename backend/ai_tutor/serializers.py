@@ -15,13 +15,30 @@ class SessionMessageSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class ChatSessionSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
     tutor = TutorProfileSerializer(read_only=True)
     tutor_id = serializers.PrimaryKeyRelatedField(
         queryset=TutorProfile.objects.filter(is_active=True),
         source='tutor', write_only=True, required=False, allow_null=True
     )
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
     messages = SessionMessageSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
 

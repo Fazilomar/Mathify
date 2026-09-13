@@ -624,7 +624,7 @@ export function GroupsPage() {
                       <MathRenderer content={g.description || 'General mathematical collaboration & problem solving'} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                      <span>Host: {g.created_by || 'Scholar'}</span>
+                      <span>Host: {(g.created_by || 'Scholar').split('@')[0]}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {g.active_meeting && (
                           <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
@@ -950,7 +950,7 @@ export function GroupsPage() {
                                   {mtgTitle}
                                 </h4>
                                 <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                                  Host: @{mtgHost} • Code: <strong style={{ color: 'var(--primary)' }}>{mtgCode}</strong>
+                                  Host: @{(mtgHost || 'Scholar').split('@')[0]} • Code: <strong style={{ color: 'var(--primary)' }}>{mtgCode}</strong>
                                 </span>
                               </div>
                             </div>

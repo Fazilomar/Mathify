@@ -14,13 +14,30 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug']
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class ResourceSerializer(serializers.ModelSerializer):
-    uploaded_by = serializers.StringRelatedField(read_only=True)
+    uploaded_by = serializers.SerializerMethodField()
     category = CategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), source='category',
         write_only=True, required=False, allow_null=True
     )
+
+    def get_uploaded_by(self, obj):
+        return _safe_user_name(obj.uploaded_by)
     tags = TagSerializer(many=True, read_only=True)
     bookmark_count = serializers.ReadOnlyField()
     is_bookmarked = serializers.SerializerMethodField()

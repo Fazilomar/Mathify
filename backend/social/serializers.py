@@ -2,15 +2,35 @@ from rest_framework import serializers
 from .models import Group, GroupMembership, GroupJoinRequest, Message, Call
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class GroupMembershipSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
     user_id = serializers.ReadOnlyField(source='user.id')
     avatar = serializers.SerializerMethodField()
-    username = serializers.ReadOnlyField(source='user.username')
+    username = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupMembership
         fields = ['id', 'user', 'user_id', 'username', 'avatar', 'role', 'joined_at']
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
+
+    def get_username(self, obj):
+        return _safe_user_name(obj.user)
 
     def get_avatar(self, obj):
         try:
@@ -20,13 +40,20 @@ class GroupMembershipSerializer(serializers.ModelSerializer):
 
 
 class GroupJoinRequestSerializer(serializers.ModelSerializer):
-    username = serializers.ReadOnlyField(source='user.username')
+    user = serializers.SerializerMethodField()
+    username = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = GroupJoinRequest
         fields = ['id', 'user', 'username', 'avatar', 'group', 'status', 'created_at', 'updated_at']
         read_only_fields = fields
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
+
+    def get_username(self, obj):
+        return _safe_user_name(obj.user)
 
     def get_avatar(self, obj):
         try:
@@ -36,7 +63,7 @@ class GroupJoinRequestSerializer(serializers.ModelSerializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
-    created_by = serializers.StringRelatedField(read_only=True)
+    created_by = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
     is_member = serializers.SerializerMethodField()
     active_meeting = serializers.SerializerMethodField()
@@ -50,6 +77,9 @@ class GroupSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_id', 'is_private', 'member_count', 'is_member', 'request_status', 'active_meeting', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
+
+    def get_created_by(self, obj):
+        return _safe_user_name(obj.created_by, fallback='Scholar')
 
     def get_member_count(self, obj):
         return obj.memberships.count()
@@ -74,7 +104,7 @@ class GroupSerializer(serializers.ModelSerializer):
                 'id': active.id,
                 'meeting_code': active.meeting_code,
                 'title': active.title,
-                'initiator': active.initiator.username,
+                'initiator': _safe_user_name(active.initiator),
                 'participants_count': active.participants.count(),
                 'started_at': active.started_at,
             }
@@ -82,11 +112,14 @@ class GroupSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    sender = serializers.StringRelatedField(read_only=True)
+    sender = serializers.SerializerMethodField()
     sender_id = serializers.ReadOnlyField(source='sender.id')
     sender_avatar = serializers.SerializerMethodField()
 
     MAX_MEDIA_BYTES = 50 * 1024 * 1024
+
+    def get_sender(self, obj):
+        return _safe_user_name(obj.sender)
 
     def get_sender_avatar(self, obj):
         try:
@@ -106,11 +139,17 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class CallSerializer(serializers.ModelSerializer):
-    initiator = serializers.StringRelatedField(read_only=True)
-    initiator_username = serializers.CharField(source='initiator.username', read_only=True)
+    initiator = serializers.SerializerMethodField()
+    initiator_username = serializers.SerializerMethodField()
     group_name = serializers.CharField(source='group.name', read_only=True)
     participants = serializers.SlugRelatedField(many=True, read_only=True, slug_field='username')
     participants_count = serializers.SerializerMethodField()
+
+    def get_initiator(self, obj):
+        return _safe_user_name(obj.initiator)
+
+    def get_initiator_username(self, obj):
+        return _safe_user_name(obj.initiator)
 
     class Meta:
         model = Call

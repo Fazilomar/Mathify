@@ -2,14 +2,31 @@ from rest_framework import serializers
 from .models import Post, Like, Comment, Follow
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class CommentSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = ['id', 'user', 'content', 'parent', 'replies', 'created_at']
         read_only_fields = ['id', 'user', 'created_at']
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
 
     def get_replies(self, obj):
         if obj.replies.exists():
@@ -18,13 +35,19 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    author = serializers.StringRelatedField(read_only=True)
+    author = serializers.SerializerMethodField()
     author_id = serializers.ReadOnlyField(source='author.id')
-    author_username = serializers.ReadOnlyField(source='author.username')
+    author_username = serializers.SerializerMethodField()
     author_avatar = serializers.SerializerMethodField()
     likes_count = serializers.ReadOnlyField()
     comments_count = serializers.ReadOnlyField()
     is_liked = serializers.SerializerMethodField()
+
+    def get_author(self, obj):
+        return _safe_user_name(obj.author)
+
+    def get_author_username(self, obj):
+        return _safe_user_name(obj.author)
 
     MAX_CONTENT_LENGTH = 4000
     MAX_LATEX_LENGTH = 8000
