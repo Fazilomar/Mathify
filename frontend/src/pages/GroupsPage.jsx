@@ -763,12 +763,20 @@ export function GroupsPage() {
                             fontWeight: 700,
                             flexShrink: 0,
                             overflow: 'hidden',
+                            position: 'relative',
                           }}
                         >
-                          {g.avatar ? (
-                            <img src={resolveMediaUrl(g.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            (g.name?.[0] || '#').toUpperCase()
+                          <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
+                            {(g.name?.[0] || '#').toUpperCase()}
+                          </span>
+                          {g.avatar && (
+                            <img
+                              key={g.avatar}
+                              src={resolveMediaUrl(g.avatar)}
+                              alt=""
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                            />
                           )}
                         </div>
                         <div style={{ fontWeight: 600, fontSize: '14px', color: isSelected ? 'var(--primary)' : 'var(--text)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -851,10 +859,17 @@ export function GroupsPage() {
                       cursor: isGroupCreator ? 'pointer' : 'default',
                     }}
                   >
-                    {activeGroup.avatar ? (
-                      <img src={resolveMediaUrl(activeGroup.avatar)} alt={activeGroup.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      (activeGroup.name?.[0] || '#').toUpperCase()
+                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
+                      {(activeGroup.name?.[0] || '#').toUpperCase()}
+                    </span>
+                    {activeGroup.avatar && (
+                      <img
+                        key={activeGroup.avatar}
+                        src={resolveMediaUrl(activeGroup.avatar)}
+                        alt=""
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                      />
                     )}
 
                     {isGroupCreator && (
@@ -868,6 +883,7 @@ export function GroupsPage() {
                           justifyContent: 'center',
                           opacity: uploadingGroupAvatar ? 1 : 0,
                           transition: 'opacity 0.2s ease',
+                          zIndex: 2,
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
                         onMouseLeave={(e) => { if (!uploadingGroupAvatar) e.currentTarget.style.opacity = '0'; }}
@@ -959,7 +975,12 @@ export function GroupsPage() {
                               }}
                             >
                               {mem.avatar ? (
-                                <img src={mem.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img
+                                  src={mem.avatar}
+                                  alt=""
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
                               ) : (
                                 (mem.username || mem.user || 'S')[0].toUpperCase()
                               )}
@@ -1824,14 +1845,14 @@ export function GroupsPage() {
         <div className="group-panel-overlay" onClick={() => setShowMembers(false)}>
           <div className="group-panel card" onClick={(e) => e.stopPropagation()}>
             <div className="group-panel-heading"><h3>Group members</h3><button onClick={() => setShowMembers(false)} aria-label="Close members"><span className="material-symbols-outlined">close</span></button></div>
-            {members.map((member) => <div className="group-member-row" key={member.id}><span className="group-avatar">{member.avatar ? <img src={member.avatar} alt="" /> : member.username?.[0]?.toUpperCase()}</span><span>{member.username || member.user}</span>{member.user_id === activeGroup.created_by_id && <span className="badge-academic">Creator</span>}</div>)}
+            {members.map((member) => <div className="group-member-row" key={member.id}><span className="group-avatar">{member.avatar ? <img src={member.avatar} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : member.username?.[0]?.toUpperCase()}</span><span>{member.username || member.user}</span>{member.user_id === activeGroup.created_by_id && <span className="badge-academic">Creator</span>}</div>)}
           </div>
         </div>
       )}
 
       {showRequests && activeGroup && (
         <div className="group-panel-overlay" onClick={() => setShowRequests(false)}>
-          <div className="group-panel card" onClick={(e) => e.stopPropagation()}><div className="group-panel-heading"><h3>Join requests</h3><button onClick={() => setShowRequests(false)} aria-label="Close requests"><span className="material-symbols-outlined">close</span></button></div>{joinRequests.length === 0 ? <p className="group-panel-empty">No pending requests.</p> : joinRequests.map((item) => <div className="group-member-row" key={item.id}><span className="group-avatar">{item.avatar ? <img src={item.avatar} alt="" /> : item.username?.[0]?.toUpperCase()}</span><span>{item.username}</span><button className="btn-primary" onClick={() => handleRequestDecision(item.id, 'approve')}>Approve</button><button className="btn-secondary" onClick={() => handleRequestDecision(item.id, 'decline')}>Decline</button></div>)}</div>
+          <div className="group-panel card" onClick={(e) => e.stopPropagation()}><div className="group-panel-heading"><h3>Join requests</h3><button onClick={() => setShowRequests(false)} aria-label="Close requests"><span className="material-symbols-outlined">close</span></button></div>{joinRequests.length === 0 ? <p className="group-panel-empty">No pending requests.</p> : joinRequests.map((item) => <div className="group-member-row" key={item.id}><span className="group-avatar">{item.avatar ? <img src={item.avatar} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : item.username?.[0]?.toUpperCase()}</span><span>{item.username}</span><button className="btn-primary" onClick={() => handleRequestDecision(item.id, 'approve')}>Approve</button><button className="btn-secondary" onClick={() => handleRequestDecision(item.id, 'decline')}>Decline</button></div>)}</div>
         </div>
       )}
 
