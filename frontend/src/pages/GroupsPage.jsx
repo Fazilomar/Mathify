@@ -256,6 +256,54 @@ export function GroupsPage() {
     }
   };
 
+  const handleLeaveGroup = async () => {
+    if (!activeGroup?.id) return;
+    if (!window.confirm(`Are you sure you want to exit #${activeGroup.name}?`)) return;
+    try {
+      const res = await API.post(`/api/social/groups/${activeGroup.id}/leave/`, {});
+      if (res.ok) {
+        setActiveGroup((prev) => ({ ...prev, is_member: false, request_status: null }));
+        fetchGroups(true);
+        fetchGroupMembers();
+      }
+    } catch (err) {
+      console.error('Failed to exit group:', err);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!activeGroup?.id) return;
+    if (!window.confirm(`Are you sure you want to permanently delete #${activeGroup.name}? All messages and seminar records in this room will be removed.`)) return;
+    try {
+      const res = await API.delete(`/api/social/groups/${activeGroup.id}/`);
+      if (res.ok) {
+        setActiveGroup(null);
+        fetchGroups();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || 'Could not delete group. Only the creator or admin can delete it.');
+      }
+    } catch (err) {
+      console.error('Failed to delete group:', err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!messageId) return;
+    if (!window.confirm('Delete this message?')) return;
+    try {
+      const res = await API.delete(`/api/social/messages/${messageId}/`);
+      if (res.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.detail || 'Could not delete message.');
+      }
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  };
+
   const handleRequestDecision = async (requestId, decision) => {
     if (!activeGroup?.id) return;
     const res = await API.post(`/api/social/groups/${activeGroup.id}/join-requests/${requestId}/${decision}/`, {});
@@ -693,6 +741,45 @@ export function GroupsPage() {
                         {activeGroup.request_status === 'pending' ? 'Request pending' : activeGroup.is_private ? 'Request to join' : 'Join group'}
                       </button>
                     )}
+                    {activeGroup.is_member && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleLeaveGroup}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: '11.5px',
+                          color: '#F87171',
+                          borderColor: 'rgba(239, 68, 68, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Exit this study group"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>logout</span> Exit Group
+                      </button>
+                    )}
+                    {(Number(activeGroup.created_by_id) === Number(API.getCurrentUserId() || user?.id) || (user && activeGroup.created_by === user.username)) && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleDeleteGroup}
+                        style={{
+                          padding: '5px 10px',
+                          fontSize: '11.5px',
+                          color: '#EF4444',
+                          backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                          borderColor: 'rgba(239, 68, 68, 0.35)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Permanently delete this group"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>delete_forever</span> Delete Room
+                      </button>
+                    )}
                     <button type="button" className="btn-secondary" onClick={() => { setShowMembers(true); fetchGroupMembers(); }} style={{ padding: '5px 10px', fontSize: '11.5px' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>group</span> Members
                     </button>
@@ -1047,11 +1134,47 @@ export function GroupsPage() {
                             </span>
                             {m.sender}
                           </span>
-                          <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
+                            {m.id && (Number(m.senderId) === Number(API.getCurrentUserId() || user?.id) || m.sender === user?.username || (user && activeGroup.created_by_id === user.id)) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(m.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: '2px',
+                                  cursor: 'pointer',
+                                  color: 'var(--text-subtle)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  opacity: 0.6,
+                                  borderRadius: '4px',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.color = 'var(--text-subtle)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                title="Delete this sent message"
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div style={{ color: 'var(--text)', marginTop: '2px' }}>
                           <MathRenderer content={m.text} />
                         </div>
+                        {m.media && (
+                          <div style={{ marginTop: '6px' }}>
+                            {typeof m.media === 'string' && m.media.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                              <img src={m.media} alt="Attachment" style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '6px', objectFit: 'contain' }} />
+                            ) : (
+                              <a href={m.media} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'underline' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>attach_file</span> View Attachment
+                              </a>
+                            )}
+                          </div>
+                        )}
                         {m.status === 'sending' && (
                           <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
                         )}

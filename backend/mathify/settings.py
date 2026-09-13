@@ -76,11 +76,37 @@ WSGI_APPLICATION = 'mathify.wsgi.application'
 DATABASE_URL = config('DATABASE_URL', default=None)
 USE_POSTGRES = config('USE_POSTGRES', default=bool(DATABASE_URL), cast=bool)
 
-if DATABASE_URL:
+def parse_database_url(url, conn_max_age=600, ssl_require=True):
     try:
         import dj_database_url
+        return dj_database_url.parse(url, conn_max_age=conn_max_age, ssl_require=ssl_require)
+    except ImportError:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url)
+        engine_map = {
+            'postgres': 'django.db.backends.postgresql',
+            'postgresql': 'django.db.backends.postgresql',
+            'sqlite': 'django.db.backends.sqlite3',
+            'mysql': 'django.db.backends.mysql',
+        }
+        engine = engine_map.get(parsed.scheme, 'django.db.backends.postgresql')
+        db_config = {
+            'ENGINE': engine,
+            'NAME': urllib.parse.unquote(parsed.path.lstrip('/')),
+            'USER': urllib.parse.unquote(parsed.username or ''),
+            'PASSWORD': urllib.parse.unquote(parsed.password or ''),
+            'HOST': parsed.hostname or '',
+            'PORT': parsed.port or '',
+            'CONN_MAX_AGE': conn_max_age,
+        }
+        if ssl_require and 'postgresql' in engine:
+            db_config['OPTIONS'] = {'sslmode': 'require'}
+        return db_config
+
+if DATABASE_URL:
+    try:
         DATABASES = {
-            'default': dj_database_url.parse(
+            'default': parse_database_url(
                 DATABASE_URL,
                 conn_max_age=config('DB_CONN_MAX_AGE', default=(0 if IS_VERCEL else 600), cast=int),
                 ssl_require=config('DB_SSL_REQUIRE', default=True, cast=bool)

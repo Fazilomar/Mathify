@@ -110,6 +110,15 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(GroupMembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
 
+    def destroy(self, request, *args, **kwargs):
+        group = self.get_object()
+        is_creator = group.created_by_id == request.user.id
+        is_admin_member = group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+        if not (is_creator or is_admin_member or request.user.is_staff):
+            return Response({'detail': 'Only the group creator or admin can delete this group.'}, status=status.HTTP_403_FORBIDDEN)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['post'])
     def leave(self, request, pk=None):
         group = self.get_object()
@@ -408,18 +417,30 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return Message.objects.none()
+        from django.db.models import Q
         return Message.objects.filter(
-            sender=self.request.user
-        ) | Message.objects.filter(recipient=self.request.user)
+            Q(sender=self.request.user) |
+            Q(recipient=self.request.user) |
+            Q(group__created_by=self.request.user) |
+            Q(group__memberships__user=self.request.user, group__memberships__role=GroupMembership.ROLE_ADMIN)
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
 
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
-        if request.method not in permissions.SAFE_METHODS and obj.sender != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("You can only modify or delete messages you authored.")
+        if request.method not in permissions.SAFE_METHODS:
+            is_sender = obj.sender == request.user
+            is_group_admin = (
+                obj.group and (
+                    obj.group.created_by == request.user or
+                    obj.group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+                )
+            )
+            if not (is_sender or is_group_admin or request.user.is_staff):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only modify or delete messages you authored, or moderate messages in groups you manage.")
 
     @action(detail=False, methods=['get'])
     def conversations(self, request):
