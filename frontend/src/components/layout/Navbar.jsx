@@ -81,7 +81,7 @@ export function Navbar() {
           const items = data.results || (Array.isArray(data) ? data : []);
           setNotificationsList(items);
         }
-      } catch {}
+      } catch { }
     }
   };
 
@@ -90,7 +90,7 @@ export function Navbar() {
       await API.post('/api/notifications/read-all/', {});
       setUnreadCount(0);
       setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch {}
+    } catch { }
   };
 
   const navLinks = [

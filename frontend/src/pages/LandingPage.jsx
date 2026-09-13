@@ -113,7 +113,7 @@ export function LandingPage() {
             lineHeight: 1.6,
           }}
         >
-          Mathify provides a dedicated academic workspace for authoring LaTeX proofs, 
+          Mathify provides a dedicated academic workspace for authoring LaTeX proofs,
           discussing mathematical conjectures, and receiving guided assistance from an AI math tutor.
         </p>
 

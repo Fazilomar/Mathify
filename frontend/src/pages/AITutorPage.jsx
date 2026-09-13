@@ -187,10 +187,10 @@ export function AITutorPage() {
           prev.map((m) =>
             m.id === assistantMsgId
               ? {
-                  ...m,
-                  content: `⚠️ Error: ${errorData.error || errorData.detail || 'Could not reach AI Tutor. Please try again.'}`,
-                  isStreaming: false,
-                }
+                ...m,
+                content: `⚠️ Error: ${errorData.error || errorData.detail || 'Could not reach AI Tutor. Please try again.'}`,
+                isStreaming: false,
+              }
               : m
           )
         );
@@ -200,10 +200,10 @@ export function AITutorPage() {
         prev.map((m) =>
           m.id === assistantMsgId
             ? {
-                ...m,
-                content: '⚠️ Network connection failed. Please verify your connection.',
-                isStreaming: false,
-              }
+              ...m,
+              content: '⚠️ Network connection failed. Please verify your connection.',
+              isStreaming: false,
+            }
             : m
         )
       );
