@@ -565,7 +565,10 @@ export function ProofsPage() {
               {filteredProofs.map((p) => {
                 const isExpanded = expandedProofId === p.id;
                 const authorDisplay = p.author_username || p.author_email || (typeof p.author === 'string' ? p.author : p.author?.username) || 'Mathematician';
-                const isAuthor = currentUserId && (p.author_id === currentUserId || p.author?.id === currentUserId);
+                const isAuthor = currentUserId && (
+                  Number(p.author_id) === Number(currentUserId) ||
+                  Number(p.author?.id) === Number(currentUserId)
+                );
                 const isEndorsed = !!endorsedMap[p.id];
                 const baseEndorsements = p.endorsements_count || 12;
                 const currentEndorsements = baseEndorsements + (isEndorsed ? 1 : 0);

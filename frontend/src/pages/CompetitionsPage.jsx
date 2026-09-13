@@ -874,7 +874,7 @@ export function CompetitionsPage() {
                         style={{ width: '100%', fontSize: '13px', resize: 'vertical' }}
                       />
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+                      <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
                         <input
                           type="text"
                           placeholder="Correct Answer (e.g. 1/3)"
@@ -982,7 +982,7 @@ export function CompetitionsPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+              <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                     Correct Answer *

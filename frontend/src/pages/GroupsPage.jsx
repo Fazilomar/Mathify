@@ -13,6 +13,11 @@ export function GroupsPage() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatAttachment, setChatAttachment] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const [roomFilter, setRoomFilter] = useState('');
   const [mobileTab, setMobileTab] = useState('chat'); // 'rooms' | 'chat'
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -29,6 +34,7 @@ export function GroupsPage() {
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomTopic, setNewRoomTopic] = useState('');
   const [newRoomType, setNewRoomType] = useState('study');
+  const [newRoomPrivate, setNewRoomPrivate] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
 
   const chatScrollRef = useRef(null);
@@ -161,7 +167,10 @@ export function GroupsPage() {
             const formatted = list.map((m) => ({
               id: m.id,
               sender: m.sender || 'Scholar',
+              senderId: m.sender_id,
+              avatar: m.sender_avatar,
               text: m.content,
+              media: m.media,
               time: m.created_at
                 ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -224,6 +233,38 @@ export function GroupsPage() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [activeGroup?.id, messagesRefreshKey]);
+
+  const fetchGroupMembers = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.get(`/api/social/groups/${activeGroup.id}/members/`);
+    if (res.ok) setMembers(await res.json());
+  };
+
+  const fetchJoinRequests = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.get(`/api/social/groups/${activeGroup.id}/join_requests/`);
+    if (res.ok) setJoinRequests(await res.json());
+  };
+
+  const handleJoinGroup = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.post(`/api/social/groups/${activeGroup.id}/join/`, {});
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActiveGroup((prev) => ({ ...prev, is_member: data.status === 'approved' || !prev.is_private, request_status: data.status || null }));
+      fetchGroups(true);
+    }
+  };
+
+  const handleRequestDecision = async (requestId, decision) => {
+    if (!activeGroup?.id) return;
+    const res = await API.post(`/api/social/groups/${activeGroup.id}/join-requests/${requestId}/${decision}/`, {});
+    if (res.ok) {
+      setJoinRequests((prev) => prev.filter((item) => item.id !== requestId));
+      fetchGroups(true);
+      fetchGroupMembers();
+    }
+  };
 
   const [showStartInstantModal, setShowStartInstantModal] = useState(false);
   const [customMeetingTitle, setCustomMeetingTitle] = useState('');
@@ -337,7 +378,7 @@ export function GroupsPage() {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text || !activeGroup?.id) return;
+    if ((!text && !chatAttachment) || !activeGroup?.id) return;
     setChatInput('');
 
     const tempId = Date.now();
@@ -345,20 +386,28 @@ export function GroupsPage() {
       id: tempId,
       sender: user?.username || 'You',
       text,
+      media: chatAttachment ? URL.createObjectURL(chatAttachment) : null,
+      senderId: user?.id,
+      avatar: user?.avatar,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'sending', // 'sending' | 'sent' | 'failed'
     };
     setMessages((prev) => [...prev, optimisticMsg]);
 
-    await sendMessage(tempId, text);
+    const attachment = chatAttachment;
+    setChatAttachment(null);
+    await sendMessage(tempId, text, attachment);
   };
 
-  const sendMessage = async (tempId, text) => {
+  const sendMessage = async (tempId, text, attachment = null) => {
     setMessages((prev) =>
       prev.map((m) => (m.id === tempId ? { ...m, status: 'sending' } : m))
     );
     try {
-      const res = await API.post(`/api/social/groups/${activeGroup.id}/messages/`, { content: text });
+      const body = new FormData();
+      if (text) body.append('content', text);
+      if (attachment) body.append('media', attachment);
+      const res = await API.post(`/api/social/groups/${activeGroup.id}/messages/`, body);
       if (res.ok) {
         const saved = await res.json();
         setMessages((prev) =>
@@ -367,7 +416,10 @@ export function GroupsPage() {
               ? {
                 id: saved.id,
                 sender: saved.sender || user?.username || 'You',
+                senderId: saved.sender_id,
+                avatar: saved.sender_avatar,
                 text: saved.content,
+                media: saved.media,
                 time: new Date(saved.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 status: 'sent',
               }
@@ -392,7 +444,7 @@ export function GroupsPage() {
   };
 
   const handleRetryMessage = (msg) => {
-    sendMessage(msg.id, msg.text);
+    sendMessage(msg.id, msg.text, null);
   };
 
   const handleDismissFailed = (msgId) => {
@@ -409,6 +461,7 @@ export function GroupsPage() {
         name: newRoomName.trim(),
         description: newRoomTopic.trim(),
         group_type: newRoomType,
+        is_private: newRoomPrivate,
       });
       if (res.ok) {
         const newGroup = await res.json();
@@ -417,6 +470,7 @@ export function GroupsPage() {
         setShowCreateModal(false);
         setNewRoomName('');
         setNewRoomTopic('');
+        setNewRoomPrivate(false);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.detail || 'Could not create study room. Ensure you are signed in.');
@@ -629,6 +683,25 @@ export function GroupsPage() {
                       <MathRenderer content={activeGroup.description || 'Active live collaboration thread.'} />
                     </div>
                   </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <span className="group-privacy-badge">
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{activeGroup.is_private ? 'lock' : 'public'}</span>
+                      {activeGroup.is_private ? 'Private group' : 'Public group'}
+                    </span>
+                    {!activeGroup.is_member && activeGroup.created_by_id !== API.getCurrentUserId() && (
+                      <button type="button" className="btn-primary" onClick={handleJoinGroup} style={{ padding: '5px 10px', fontSize: '11.5px' }}>
+                        {activeGroup.request_status === 'pending' ? 'Request pending' : activeGroup.is_private ? 'Request to join' : 'Join group'}
+                      </button>
+                    )}
+                    <button type="button" className="btn-secondary" onClick={() => { setShowMembers(true); fetchGroupMembers(); }} style={{ padding: '5px 10px', fontSize: '11.5px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>group</span> Members
+                    </button>
+                    {activeGroup.created_by_id === API.getCurrentUserId() && activeGroup.is_private && (
+                      <button type="button" className="btn-secondary" onClick={() => { setShowRequests(true); fetchJoinRequests(); }} style={{ padding: '5px 10px', fontSize: '11.5px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>person_add</span> Requests
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <button
@@ -762,7 +835,7 @@ export function GroupsPage() {
                       />
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                          🔴 Live Seminar: {currentMeeting.title}
+                           Live Seminar: {currentMeeting.title}
                         </div>
                         <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                           Hosted by @{currentMeeting.initiator || currentMeeting.initiator_username || 'Host'} • {currentMeeting.participants_count || 1} connected
@@ -957,17 +1030,23 @@ export function GroupsPage() {
                     return (
                       <div
                         key={m.id}
+                        className={`group-message ${m.senderId && Number(m.senderId) === Number(API.getCurrentUserId() || user?.id) ? 'is-own' : ''}`}
                         style={{
                           padding: '10px 14px',
-                          backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : 'rgba(229, 169, 60, 0.08)',
-                          border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : '1px solid var(--primary-border)',
+                          backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : undefined,
+                          border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : undefined,
                           borderRadius: '8px',
                           fontSize: '13.5px',
                           opacity: m.status === 'sending' ? 0.6 : 1,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>{m.sender}</span>
+                        <div className="group-message-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                          <span className="group-message-sender" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>
+                            <span className="group-avatar">
+                              {m.avatar ? <img src={m.avatar} alt="" /> : (m.sender?.[0]?.toUpperCase() || 'S')}
+                            </span>
+                            {m.sender}
+                          </span>
                           <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
                         </div>
                         <div style={{ color: 'var(--text)', marginTop: '2px' }}>
@@ -1019,7 +1098,11 @@ export function GroupsPage() {
                   ))}
                 </div>
 
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
+                <form onSubmit={handleSendMessage} className="group-chat-form" style={{ display: 'flex', gap: '10px' }}>
+                  <label className="group-attach-button" title="Attach a file">
+                    <span className="material-symbols-outlined">add</span>
+                    <input type="file" onChange={(e) => setChatAttachment(e.target.files?.[0] || null)} hidden />
+                  </label>
                   <input
                     type="text"
                     className="glass-input"
@@ -1028,11 +1111,12 @@ export function GroupsPage() {
                     onChange={(e) => setChatInput(e.target.value)}
                     style={{ fontSize: '13.5px', flex: 1 }}
                   />
-                  <button type="submit" className="btn-primary" style={{ padding: '8px 20px', fontSize: '13.5px' }}>
-                    Send
+                  <button type="submit" className="btn-primary group-send-button" aria-label="Send message" title="Send message">
+                    <span className="material-symbols-outlined">arrow_upward</span>
                   </button>
                 </form>
-              </div>
+                {chatAttachment && <div className="group-selected-file"><span className="material-symbols-outlined">attach_file</span>{chatAttachment.name}<button type="button" onClick={() => setChatAttachment(null)}>close</button></div>}
+              </div>}
             </>
           ) : (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '40px 20px' }}>
@@ -1083,6 +1167,7 @@ export function GroupsPage() {
                   Create an open mathematical seminar room for live discussion and whiteboarding.
                 </p>
               </div>
+
               <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -1128,6 +1213,11 @@ export function GroupsPage() {
                 </select>
               </div>
 
+              <label className="group-privacy-option">
+                <input type="checkbox" checked={newRoomPrivate} onChange={(e) => setNewRoomPrivate(e.target.checked)} />
+                <span><strong>Private group</strong><small>People can see the preview, but must request approval before joining the chat.</small></span>
+              </label>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary" style={{ padding: '9px 18px', fontSize: '13.5px' }}>
                   Cancel
@@ -1138,6 +1228,21 @@ export function GroupsPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {showMembers && activeGroup && (
+        <div className="group-panel-overlay" onClick={() => setShowMembers(false)}>
+          <div className="group-panel card" onClick={(e) => e.stopPropagation()}>
+            <div className="group-panel-heading"><h3>Group members</h3><button onClick={() => setShowMembers(false)} aria-label="Close members"><span className="material-symbols-outlined">close</span></button></div>
+            {members.map((member) => <div className="group-member-row" key={member.id}><span className="group-avatar">{member.avatar ? <img src={member.avatar} alt="" /> : member.username?.[0]?.toUpperCase()}</span><span>{member.username || member.user}</span>{member.user_id === activeGroup.created_by_id && <span className="badge-academic">Creator</span>}</div>)}
+          </div>
+        </div>
+      )}
+
+      {showRequests && activeGroup && (
+        <div className="group-panel-overlay" onClick={() => setShowRequests(false)}>
+          <div className="group-panel card" onClick={(e) => e.stopPropagation()}><div className="group-panel-heading"><h3>Join requests</h3><button onClick={() => setShowRequests(false)} aria-label="Close requests"><span className="material-symbols-outlined">close</span></button></div>{joinRequests.length === 0 ? <p className="group-panel-empty">No pending requests.</p> : joinRequests.map((item) => <div className="group-member-row" key={item.id}><span className="group-avatar">{item.avatar ? <img src={item.avatar} alt="" /> : item.username?.[0]?.toUpperCase()}</span><span>{item.username}</span><button className="btn-primary" onClick={() => handleRequestDecision(item.id, 'approve')}>Approve</button><button className="btn-secondary" onClick={() => handleRequestDecision(item.id, 'decline')}>Decline</button></div>)}</div>
         </div>
       )}
 

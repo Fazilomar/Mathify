@@ -9,6 +9,7 @@ export function AITutorPage() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
@@ -97,12 +98,44 @@ export function AITutorPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      window.alert('Please choose a file smaller than 10 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedAttachment({
+        name: file.name,
+        mime: file.type || 'application/octet-stream',
+        data: String(reader.result).split(',')[1] || '',
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSendMessage = async (msgText = inputMessage) => {
     const text = typeof msgText === 'string' ? msgText.trim() : inputMessage.trim();
-    if (!text || sending) return;
+    if ((!text && !selectedAttachment) || sending) return;
+
+    const attachment = selectedAttachment;
+    const messageText = text || `Please analyze the attached file: ${attachment.name}`;
 
     setInputMessage('');
-    const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
+    setSelectedAttachment(null);
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      content: messageText,
+      file_name: attachment?.name,
+      file_mime: attachment?.mime,
+      created_at: new Date().toISOString(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
 
@@ -123,9 +156,12 @@ export function AITutorPage() {
       const res = await API.req('/api/ai-tutor/chat/?stream=true', {
         method: 'POST',
         body: JSON.stringify({
-          message: text,
+          message: messageText,
           session_id: activeSessionId,
           stream: true,
+          file_data: attachment?.data || '',
+          file_name: attachment?.name || '',
+          file_mime: attachment?.mime || '',
         }),
         headers: {
           'Accept': 'text/event-stream',
@@ -586,6 +622,14 @@ export function AITutorPage() {
               ))}
             </div>
 
+            {selectedAttachment && (
+              <div className="ai-tutor-attachment" role="status">
+                <span className="material-symbols-outlined">attach_file</span>
+                <span>{selectedAttachment.name}</span>
+                <button type="button" onClick={() => setSelectedAttachment(null)} aria-label="Remove attachment">close</button>
+              </div>
+            )}
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -594,6 +638,15 @@ export function AITutorPage() {
               className="ai-tutor-input-row"
               style={{ display: 'flex', gap: '10px' }}
             >
+              <label className="ai-tutor-attach-button" title="Attach a file, image, or video">
+                <span className="material-symbols-outlined">add</span>
+                <input
+                  type="file"
+                  accept="image/*,video/*,.pdf,.txt,.csv,.doc,.docx"
+                  onChange={handleAttachmentChange}
+                  hidden
+                />
+              </label>
               <input
                 type="text"
                 className="glass-input"
@@ -605,11 +658,12 @@ export function AITutorPage() {
               />
               <button
                 type="submit"
-                disabled={sending || !inputMessage.trim()}
-                className="btn-primary"
-                style={{ padding: '10px 22px', fontSize: '13.5px' }}
+                disabled={sending || (!inputMessage.trim() && !selectedAttachment)}
+                className="btn-primary ai-tutor-send-button"
+                aria-label="Send message"
+                title="Send message"
               >
-                Send
+                <span className="material-symbols-outlined">arrow_upward</span>
               </button>
             </form>
           </div>

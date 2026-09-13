@@ -12,6 +12,7 @@ export function LibraryPage() {
   const [newDesc, setNewDesc] = useState('');
   const [newType, setNewType] = useState('textbook');
   const [newUrl, setNewUrl] = useState('');
+  const [newFile, setNewFile] = useState(null);
   const [publishing, setPublishing] = useState(false);
 
   const categories = [
@@ -54,12 +55,13 @@ export function LibraryPage() {
     if (!newTitle.trim()) return;
     setPublishing(true);
     try {
-      const res = await API.post('/api/library/resources/', {
-        title: newTitle.trim(),
-        description: newDesc.trim(),
-        resource_type: newType,
-        url: newUrl.trim(),
-      });
+      const formData = new FormData();
+      formData.append('title', newTitle.trim());
+      formData.append('description', newDesc.trim());
+      formData.append('resource_type', newType);
+      if (newUrl.trim()) formData.append('url', newUrl.trim());
+      if (newFile) formData.append('file', newFile);
+      const res = await API.post('/api/library/resources/', formData);
       if (res.ok) {
         const saved = await res.json();
         setResources((prev) => [saved, ...prev]);
@@ -67,6 +69,7 @@ export function LibraryPage() {
         setNewTitle('');
         setNewDesc('');
         setNewUrl('');
+        setNewFile(null);
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.detail || 'Could not publish manuscript. Please ensure you are logged in.');
@@ -198,6 +201,7 @@ export function LibraryPage() {
 
         {/* Category Filter Pills */}
         <div
+          className="manuscript-grid"
           style={{
             display: 'flex',
             gap: '8px',
@@ -448,7 +452,7 @@ export function LibraryPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                     Resource Type
@@ -478,6 +482,20 @@ export function LibraryPage() {
                     onChange={(e) => setNewUrl(e.target.value)}
                     style={{ width: '100%', padding: '10px 14px', fontSize: '13.5px' }}
                   />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    Upload from device
+                  </label>
+                  <label className="library-file-picker">
+                    <span className="material-symbols-outlined">upload_file</span>
+                    <span>{newFile ? newFile.name : 'Choose a file'}</span>
+                    <input
+                      type="file"
+                      onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                      hidden
+                    />
+                  </label>
                 </div>
               </div>
 

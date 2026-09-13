@@ -235,6 +235,7 @@ export function Navbar() {
               {/* Notification Popover Dropdown */}
               {showNotifMenu && (
                 <div
+                  className="notification-popover"
                   style={{
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
@@ -509,6 +510,7 @@ export function Navbar() {
             onClick={() => setShowMobileDrawer(false)}
           >
             <div
+              className="mobile-drawer-panel"
               style={{
                 width: '300px',
                 maxWidth: '85vw',

@@ -150,6 +150,7 @@ export function ProfilePage() {
 
         {/* Academic Statistics Bar */}
         <div
+          className="profile-stats-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -188,7 +189,7 @@ export function ProfilePage() {
           Honors & Badges
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+        <div className="profile-achievements-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
           {badges.map((b) => (
             <div
               key={b.id || b.name}
