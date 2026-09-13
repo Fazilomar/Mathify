@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 export function CompetitionsPage() {
   const { user, isAuthenticated, fetchProfile } = useAuth();
@@ -14,6 +15,7 @@ export function CompetitionsPage() {
   // Answering state: { [questionId]: { answerText: '', submitting: false, feedback: null } }
   const [answersState, setAnswersState] = useState({});
   const [registering, setRegistering] = useState(false);
+  const [registerModal, setRegisterModal] = useState(null);
 
   // Host Competition Modal State
   const [showHostModal, setShowHostModal] = useState(false);
@@ -103,22 +105,7 @@ export function CompetitionsPage() {
     }));
   };
 
-  const handleSubmitAnswer = async (e, compId, qId) => {
-    e.preventDefault();
-    if (!isAuthenticated) {
-      alert('Please sign in to submit competition solutions and earn Axiom Points.');
-      return;
-    }
-
-    if (!isHost && activeCompetition && !activeCompetition.is_registered) {
-      const confirmReg = window.confirm('You must register for this competition sprint before submitting solutions. Would you like to register now?');
-      if (confirmReg) {
-        await handleRegisterCompetition(compId);
-      } else {
-        return;
-      }
-    }
-
+  const executeSubmitAnswer = async (compId, qId) => {
     const state = answersState[qId] || {};
     const text = (state.answerText || '').trim();
     if (!text) return;
@@ -202,6 +189,31 @@ export function CompetitionsPage() {
           },
         },
       }));
+    }
+  };
+
+  const handleSubmitAnswer = async (e, compId, qId) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      alert('Please sign in to submit competition solutions and earn Axiom Points.');
+      return;
+    }
+
+    if (!isHost && activeCompetition && !activeCompetition.is_registered) {
+      setRegisterModal({ compId, qId });
+      return;
+    }
+
+    executeSubmitAnswer(compId, qId);
+  };
+
+  const handleConfirmRegisterModal = async () => {
+    if (!registerModal) return;
+    const { compId, qId } = registerModal;
+    await handleRegisterCompetition(compId);
+    setRegisterModal(null);
+    if (qId) {
+      executeSubmitAnswer(compId, qId);
     }
   };
 
@@ -1034,6 +1046,20 @@ export function CompetitionsPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Registration Confirmation Modal */}
+      {registerModal && (
+        <ConfirmModal
+          isOpen={Boolean(registerModal)}
+          onClose={() => setRegisterModal(null)}
+          onConfirm={handleConfirmRegisterModal}
+          title="Register for Competition Sprint"
+          message={`You must register for "${activeCompetition?.title || 'this sprint'}" before submitting solutions and earning Axiom Points. Would you like to register now?`}
+          confirmText="Register & Submit"
+          cancelText="Cancel"
+          variant="info"
+          isLoading={registering}
+        />
       )}
     </div>
   );

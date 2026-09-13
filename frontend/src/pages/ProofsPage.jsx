@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
 import Modal from '../components/common/Modal';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 const SEED_PROOFS = [
   {
@@ -53,6 +54,8 @@ export function ProofsPage() {
   const [endorsedMap, setEndorsedMap] = useState({});
   const [copiedId, setCopiedId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+  const [proofToDelete, setProofToDelete] = useState(null);
+  const [deletingProof, setDeletingProof] = useState(false);
 
   // Composer modal state
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -227,18 +230,22 @@ export function ProofsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDeleteProof = async (proofId) => {
-    if (!window.confirm('Are you sure you want to delete this theorem preprint?')) return;
+  const handleConfirmDeleteProof = async () => {
+    if (!proofToDelete) return;
+    setDeletingProof(true);
     try {
-      const res = await API.delete(`/api/studio/creations/${proofId}/`);
+      const res = await API.delete(`/api/studio/creations/${proofToDelete.id}/`);
       if (res.ok) {
-        setProofs((prev) => prev.filter((p) => p.id !== proofId));
+        setProofs((prev) => prev.filter((p) => p.id !== proofToDelete.id));
+        setProofToDelete(null);
         showToast('Proof preprint deleted successfully.');
       } else {
         showToast('Failed to delete preprint.');
       }
     } catch {
       showToast('Error deleting preprint.');
+    } finally {
+      setDeletingProof(false);
     }
   };
 
@@ -475,7 +482,6 @@ export function ProofsPage() {
         </div>
       </div>
 
-      {/* Main Studio Grid: Proofs Stream on Left, Axiom Sidebar on Right */}
       <div className="studio-grid">
         {/* Left Column: Proofs List & Filter (Hidden on mobile if Axiom tab is active) */}
         <div className={`proofs-col-stream ${mobileTab === 'axioms' ? 'proofs-mobile-hidden' : ''}`}>
@@ -610,7 +616,7 @@ export function ProofsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {isAuthor && typeof p.id === 'number' && (
                           <button
-                            onClick={() => handleDeleteProof(p.id)}
+                            onClick={() => setProofToDelete(p)}
                             title="Delete proof"
                             style={{
                               background: 'transparent',
@@ -1060,6 +1066,21 @@ export function ProofsPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Modern Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(proofToDelete)}
+        onClose={() => {
+          if (!deletingProof) setProofToDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteProof}
+        title="Delete Theorem Preprint"
+        message={`Are you sure you want to delete "${proofToDelete?.title || 'this preprint'}"? This action cannot be undone.`}
+        confirmText="Delete Preprint"
+        cancelText="Keep Preprint"
+        variant="danger"
+        isLoading={deletingProof}
+      />
 
       <style>{`
         @media (max-width: 768px) {

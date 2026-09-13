@@ -5,6 +5,7 @@ import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
 import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
 import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 export function GroupsPage() {
   const { user, isAuthenticated } = useAuth();
@@ -23,6 +24,8 @@ export function GroupsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [activeMeeting, setActiveMeeting] = useState(null);
   const [meetingDropdownOpen, setMeetingDropdownOpen] = useState(false);
@@ -300,52 +303,93 @@ export function GroupsPage() {
     }
   };
 
-  const handleLeaveGroup = async () => {
+  const handleLeaveGroup = () => {
     if (!activeGroup?.id) return;
-    if (!window.confirm(`Are you sure you want to exit #${activeGroup.name}?`)) return;
-    try {
-      const res = await API.post(`/api/social/groups/${activeGroup.id}/leave/`, {});
-      if (res.ok) {
-        setActiveGroup((prev) => ({ ...prev, is_member: false, request_status: null }));
-        fetchGroups(true);
-        fetchGroupMembers();
-      }
-    } catch (err) {
-      console.error('Failed to exit group:', err);
-    }
+    setConfirmDialog({
+      title: `Exit #${activeGroup.name}`,
+      message: `Are you sure you want to exit #${activeGroup.name}? You will no longer receive seminar broadcasts or instant room alerts.`,
+      confirmText: 'Exit Room',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.post(`/api/social/groups/${activeGroup.id}/leave/`, {});
+          if (res.ok) {
+            setActiveGroup((prev) => ({ ...prev, is_member: false, request_status: null }));
+            fetchGroups(true);
+            fetchGroupMembers();
+            setCopiedToast(`Exited #${activeGroup.name}`);
+            setTimeout(() => setCopiedToast(''), 2500);
+          }
+        } catch (err) {
+          console.error('Failed to exit group:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
-  const handleDeleteGroup = async () => {
+  const handleDeleteGroup = () => {
     if (!activeGroup?.id) return;
-    if (!window.confirm(`Are you sure you want to permanently delete #${activeGroup.name}? All messages and seminar records in this room will be removed.`)) return;
-    try {
-      const res = await API.delete(`/api/social/groups/${activeGroup.id}/`);
-      if (res.ok) {
-        setActiveGroup(null);
-        fetchGroups();
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.detail || 'Could not delete group. Only the creator or admin can delete it.');
-      }
-    } catch (err) {
-      console.error('Failed to delete group:', err);
-    }
+    setConfirmDialog({
+      title: `Delete #${activeGroup.name}`,
+      message: `Are you sure you want to permanently delete #${activeGroup.name}? All messages and seminar records in this room will be removed.`,
+      confirmText: 'Delete Room',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.delete(`/api/social/groups/${activeGroup.id}/`);
+          if (res.ok) {
+            setActiveGroup(null);
+            fetchGroups();
+            setCopiedToast('Study room deleted permanently.');
+            setTimeout(() => setCopiedToast(''), 2500);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            setCopiedToast(errData.detail || 'Could not delete room.');
+            setTimeout(() => setCopiedToast(''), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to delete group:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
-  const handleDeleteMessage = async (messageId) => {
+  const handleDeleteMessage = (messageId) => {
     if (!messageId) return;
-    if (!window.confirm('Delete this message?')) return;
-    try {
-      const res = await API.delete(`/api/social/messages/${messageId}/`);
-      if (res.ok) {
-        setMessages((prev) => prev.filter((m) => m.id !== messageId));
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.detail || 'Could not delete message.');
-      }
-    } catch (err) {
-      console.error('Failed to delete message:', err);
-    }
+    setConfirmDialog({
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message? This action cannot be undone.',
+      confirmText: 'Delete Message',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.delete(`/api/social/messages/${messageId}/`);
+          if (res.ok) {
+            setMessages((prev) => prev.filter((m) => m.id !== messageId));
+            setCopiedToast('Message deleted.');
+            setTimeout(() => setCopiedToast(''), 2000);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            setCopiedToast(errData.detail || 'Could not delete message.');
+            setTimeout(() => setCopiedToast(''), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to delete message:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   };
 
   const handleRequestDecision = async (requestId, decision) => {
@@ -2199,6 +2243,22 @@ export function GroupsPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Modern Confirmation Modal */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={Boolean(confirmDialog)}
+          onClose={() => {
+            if (!confirmLoading) setConfirmDialog(null);
+          }}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText || 'Confirm'}
+          cancelText="Cancel"
+          variant={confirmDialog.variant || 'danger'}
+          isLoading={confirmLoading}
+        />
       )}
     </div>
 

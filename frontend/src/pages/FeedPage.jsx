@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API, resolveMediaUrl } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 export function FeedPage() {
   const { user, isAuthenticated } = useAuth();
@@ -17,6 +18,15 @@ export function FeedPage() {
   const [previewTab, setPreviewTab] = useState('write');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
 
   // Active comments drawer
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -140,7 +150,7 @@ export function FeedPage() {
         setPreviewTab('write');
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.media ? err.media.join(' ') : (err.detail || 'Unable to publish post.'));
+        showToast(err.media ? err.media.join(' ') : (err.detail || 'Unable to publish post.'), 'error');
       }
     } catch (err) {
       console.error('Failed to create post:', err);
@@ -231,22 +241,27 @@ export function FeedPage() {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm('Are you sure you want to delete this publication? This action cannot be undone.')) {
-      return;
-    }
+  const requestDeletePost = (post) => {
+    setPostToDelete(post);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!postToDelete?.id) return;
+    const postId = postToDelete.id;
     setDeletingId(postId);
     try {
       const res = await API.delete(`/api/feed/posts/${postId}/`);
       if (res.ok || res.status === 204) {
         setPosts((prev) => prev.filter((p) => p.id !== postId));
+        setPostToDelete(null);
+        showToast('Publication deleted successfully.', 'success');
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(`Unable to delete publication: ${errData.detail || 'Permission denied'}`);
+        showToast(`Unable to delete publication: ${errData.detail || 'Permission denied'}`, 'error');
       }
     } catch (err) {
       console.error('Failed to delete post:', err);
-      alert('Network error attempting to delete publication.');
+      showToast('Network error attempting to delete publication.', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -562,7 +577,7 @@ export function FeedPage() {
                   {/* Delete Button for Post Author */}
                   {isAuthor && (
                     <button
-                      onClick={() => handleDeletePost(post.id)}
+                      onClick={() => requestDeletePost(post)}
                       disabled={deletingId === post.id}
                       title="Delete publication"
                       style={{
@@ -753,6 +768,53 @@ export function FeedPage() {
           })}
         </div>
       )}
+
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 99999,
+            backgroundColor: '#1E1E26',
+            color: toast.type === 'error' ? '#F87171' : 'var(--primary, #E5A93C)',
+            border: `1px solid ${toast.type === 'error' ? 'rgba(239, 68, 68, 0.35)' : 'var(--primary-border, rgba(229, 169, 60, 0.35))'}`,
+            padding: '12px 18px',
+            borderRadius: '12px',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 0, 0, 0.4)',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            animation: 'fadeInScale 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+            maxWidth: '90vw',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+            {toast.type === 'error' ? 'error' : 'check_circle'}
+          </span>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(postToDelete)}
+        onClose={() => {
+          if (!deletingId) setPostToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Publication"
+        message="Are you sure you want to delete this publication? This action cannot be undone and will permanently remove this discussion from the mathematical feed."
+        confirmText="Delete Publication"
+        cancelText="Keep Publication"
+        variant="danger"
+        isLoading={Boolean(deletingId)}
+      />
     </div>
   );
 }
