@@ -187,6 +187,18 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         Object.values(peerConnectionsRef.current).forEach((pc) => {
           stream.getTracks().forEach((track) => pc.addTrack(track, stream));
         });
+
+        // If LiveKit is already connected, publish newly acquired tracks
+        if (livekitRoomRef.current?.localParticipant) {
+          const vTrack = stream.getVideoTracks()[0];
+          const aTrack = stream.getAudioTracks()[0];
+          if (vTrack && camEnabled) {
+            livekitRoomRef.current.localParticipant.publishTrack(vTrack).catch((err) => console.warn('LiveKit video publish error:', err));
+          }
+          if (aTrack && micEnabled) {
+            livekitRoomRef.current.localParticipant.publishTrack(aTrack).catch((err) => console.warn('LiveKit audio publish error:', err));
+          }
+        }
       } catch (err) {
         console.error('Failed to get media devices:', err);
         if (isMountedRef.current) {
@@ -244,21 +256,47 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         livekitRoomRef.current = room;
 
         room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          if (track.kind === Track.Kind.Video || track.kind === Track.Kind.Audio) {
-            const mediaStream = new MediaStream([track.mediaStreamTrack]);
-            setRemoteStreams((prev) => ({
-              ...prev,
-              [participant.identity]: mediaStream,
-            }));
+          if (track.kind === Track.Kind.Audio) {
+            // Remove previous audio element for this participant if any
+            document.querySelectorAll(`[data-livekit-audio="${participant.identity}"]`).forEach((el) => el.remove());
+            const audioElement = track.attach();
+            audioElement.autoplay = true;
+            audioElement.playsInline = true;
+            audioElement.volume = 1.0;
+            audioElement.setAttribute('data-livekit-audio', participant.identity);
+            audioElement.style.display = 'none';
+            document.body.appendChild(audioElement);
+          }
+          if (track.kind === Track.Kind.Video) {
+            setRemoteStreams((prev) => {
+              const stream = prev[participant.identity] || new MediaStream();
+              stream.getVideoTracks().forEach((t) => stream.removeTrack(t));
+              stream.addTrack(track.mediaStreamTrack);
+              return { ...prev, [participant.identity]: stream };
+            });
           }
         });
 
         room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-          setRemoteStreams((prev) => {
-            const next = { ...prev };
-            delete next[participant.identity];
-            return next;
-          });
+          if (track.kind === Track.Kind.Audio) {
+            track.detach().forEach((el) => el.remove());
+            document.querySelectorAll(`[data-livekit-audio="${participant.identity}"]`).forEach((el) => el.remove());
+          }
+          if (track.kind === Track.Kind.Video) {
+            setRemoteStreams((prev) => {
+              const stream = prev[participant.identity];
+              if (stream) {
+                stream.getVideoTracks().forEach((t) => stream.removeTrack(t));
+              }
+              return { ...prev };
+            });
+          }
+        });
+
+        room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+          if (!room.canPlaybackAudio) {
+            room.startAudio().catch(() => {});
+          }
         });
 
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
@@ -290,11 +328,18 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         await room.connect(data.server_url, data.token);
         if (isSubscribed) {
           setLivekitConnected(true);
-          if (localStreamRef.current) {
+          if (!room.canPlaybackAudio) {
+            room.startAudio().catch(() => {});
+          }
+          if (localStreamRef.current && room.localParticipant) {
             const vTrack = localStreamRef.current.getVideoTracks()[0];
             const aTrack = localStreamRef.current.getAudioTracks()[0];
-            if (vTrack && camEnabled) room.localParticipant.publishTrack(vTrack);
-            if (aTrack && micEnabled) room.localParticipant.publishTrack(aTrack);
+            if (vTrack && camEnabled) {
+              room.localParticipant.publishTrack(vTrack).catch((err) => console.warn('LiveKit video publish error:', err));
+            }
+            if (aTrack && micEnabled) {
+              room.localParticipant.publishTrack(aTrack).catch((err) => console.warn('LiveKit audio publish error:', err));
+            }
           }
         }
       } catch (err) {
@@ -306,6 +351,9 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
     return () => {
       isSubscribed = false;
+      try {
+        document.querySelectorAll('[data-livekit-audio]').forEach((el) => el.remove());
+      } catch { }
       if (livekitRoomRef.current) {
         livekitRoomRef.current.disconnect();
         livekitRoomRef.current = null;
@@ -390,6 +438,10 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         livekitRoomRef.current.disconnect();
         livekitRoomRef.current = null;
       }
+    } catch { }
+
+    try {
+      document.querySelectorAll('[data-livekit-audio]').forEach((el) => el.remove());
     } catch { }
 
     try {
@@ -695,6 +747,9 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   };
 
   const handleJoinLive = (startMuted = false) => {
+    if (livekitRoomRef.current) {
+      livekitRoomRef.current.startAudio().catch(() => {});
+    }
     if (startMuted && micEnabled) {
       handleToggleMic();
     }
