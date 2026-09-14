@@ -1666,15 +1666,15 @@ export function GroupsPage() {
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-                      <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>LaTeX:</span>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px', flexShrink: 0 }}>LaTeX:</span>
                       {quickSymbols.map((s) => (
                         <button
                           key={s.label}
                           type="button"
                           onClick={() => setChatInput((prev) => (prev ? `${prev} $${s.code}$ ` : `$${s.code}$ `))}
                           className="symbol-chip"
-                          style={{ fontSize: '12px', padding: '2px 8px' }}
+                          style={{ fontSize: '12px', padding: '3px 8px', flexShrink: 0 }}
                           title={s.code}
                         >
                           {s.label}

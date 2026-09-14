@@ -402,52 +402,129 @@ export function FeedPage() {
                     style={{ fontFamily: 'monospace', fontSize: '13px' }}
                   />
 
-                  {/* Attachment indicator with visual thumbnail */}
+                  {/* Rich Interactive Attachment Preview (Supports both Image & Video per user feedback) */}
                   {selectedFile && (
-                    <div style={{ marginTop: '8px', padding: '8px 12px', background: 'rgba(0,0,0,0.35)', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                        {filePreview && !selectedFile.type?.startsWith('video/') ? (
-                          <img src={filePreview} alt="Preview" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
-                        ) : (
-                          <span className="material-symbols-outlined" style={{ fontSize: '24px', color: 'var(--primary)', flexShrink: 0 }}>
-                            {selectedFile.type?.startsWith('video/') ? 'videocam' : 'image'}
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        padding: '12px',
+                        background: '#121216',
+                        borderRadius: '10px',
+                        border: '1px solid var(--primary-border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--primary)', flexShrink: 0 }}>
+                            {selectedFile.type?.startsWith('video/') ? 'movie' : 'image'}
                           </span>
-                        )}
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12.5px', color: 'var(--text)' }}>
-                          {selectedFile.name}
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selectedFile.name}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-subtle)', flexShrink: 0 }}>
+                            ({(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
                         </div>
+                        <button
+                          type="button"
+                          onClick={handleClearFile}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#F87171',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11.5px',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+                          Remove
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleClearFile}
-                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', flexShrink: 0 }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
-                        Remove
-                      </button>
+
+                      {/* Interactive Visual Preview */}
+                      {filePreview && (
+                        <div style={{ borderRadius: '8px', overflow: 'hidden', maxHeight: '240px', backgroundColor: '#0A0A0D', border: '1px solid var(--border)' }}>
+                          {selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(selectedFile.name) ? (
+                            <video
+                              src={filePreview}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              style={{ width: '100%', maxHeight: '240px', display: 'block', backgroundColor: '#000' }}
+                            />
+                          ) : (
+                            <img
+                              src={filePreview}
+                              alt="Attachment preview"
+                              style={{ width: '100%', maxHeight: '240px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                    <label
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        fontSize: '13px',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>image</span>
-                      Attach Media
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleFileSelect(e.target.files[0])}
-                      />
-                    </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          fontSize: '12.5px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>image</span>
+                        <span>Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleFileSelect(e.target.files[0])}
+                        />
+                      </label>
+
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          fontSize: '12.5px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>videocam</span>
+                        <span>Video</span>
+                        <input
+                          type="file"
+                          accept="video/mp4,video/webm,video/quicktime,video/ogg,video/3gpp"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleFileSelect(e.target.files[0])}
+                        />
+                      </label>
+                    </div>
 
                     <button
                       type="submit"
@@ -633,9 +710,15 @@ export function FeedPage() {
 
               {/* Media Attachment */}
               {post.media && (
-                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '480px', background: 'rgba(0,0,0,0.4)' }}>
-                  {/\.(mp4|webm|ogg|mov)$/i.test(post.media) ? (
-                    <video src={resolveMediaUrl(post.media)} controls style={{ width: '100%', maxHeight: '480px', display: 'block' }} />
+                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '480px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border)' }}>
+                  {post.post_type === 'video' || /\.(mp4|webm|ogg|mov|m4v|3gp)$/i.test(post.media) ? (
+                    <video
+                      src={resolveMediaUrl(post.media)}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      style={{ width: '100%', maxHeight: '480px', display: 'block', backgroundColor: '#000' }}
+                    />
                   ) : (
                     <img
                       src={resolveMediaUrl(post.media)}

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
 import Modal from '../components/common/Modal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import MathGraphStudio from '../components/studio/MathGraphStudio';
+import ProofWalkthroughRecorder from '../components/studio/ProofWalkthroughRecorder';
 
 const SEED_PROOFS = [
   {
@@ -48,7 +50,11 @@ export function ProofsPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [mobileTab, setMobileTab] = useState('preprints'); // 'preprints' or 'axioms'
+  const [mobileTab, setMobileTab] = useState('preprints'); // 'preprints' | 'axioms' | 'graphs'
+  const [activeTab, setActiveTab] = useState('preprints'); // 'preprints' | 'axioms' | 'graphs'
+  const [walkthroughMedia, setWalkthroughMedia] = useState(null);
+  const [attachedGraphSnapshot, setAttachedGraphSnapshot] = useState(null);
+  const [showGraphStudioModal, setShowGraphStudioModal] = useState(false);
 
   // Interactive endorsements state
   const [endorsedMap, setEndorsedMap] = useState({});
@@ -262,7 +268,7 @@ export function ProofsPage() {
       .map((s, idx) => `Step ${idx + 1} [${s.rule}]: ${s.statement} ${s.latex ? `$$${s.latex}$$` : ''}`)
       .join('\n\n');
 
-    const fullContent = [
+    let fullContent = [
       hypothesis ? `**Hypothesis:**\n${hypothesis}` : '',
       conclusion ? `**Theorem Statement:**\n${conclusion}` : '',
       formattedStepsText ? `**Derivation Steps:**\n${formattedStepsText}` : '',
@@ -270,14 +276,22 @@ export function ProofsPage() {
       .filter(Boolean)
       .join('\n\n---\n\n');
 
+    if (attachedGraphSnapshot) {
+      fullContent += `\n\n---\n\n**Geometric & Coordinate Visualization:**\n\n![Coordinate Plot](${attachedGraphSnapshot})`;
+    }
+
     try {
-      const res = await API.post('/api/studio/creations/', {
-        title: title.trim(),
-        content: fullContent,
-        latex_content: latexProof.trim(),
-        formula_ids: selectedFormulaIds,
-        visibility,
-      });
+      const formData = new FormData();
+      formData.append('title', title.trim());
+      formData.append('content', fullContent);
+      if (latexProof.trim()) formData.append('latex_content', latexProof.trim());
+      formData.append('visibility', visibility);
+      selectedFormulaIds.forEach((id) => formData.append('formula_ids', id));
+      if (walkthroughMedia) {
+        formData.append('media', walkthroughMedia);
+      }
+
+      const res = await API.post('/api/studio/creations/', formData);
 
       if (res.ok) {
         const created = await res.json();
@@ -288,6 +302,8 @@ export function ProofsPage() {
         setLatexProof('');
         setSteps([{ id: 1, statement: 'Initial assumption / given premises', latex: '', rule: 'Hypothesis' }]);
         setSelectedFormulaIds([]);
+        setWalkthroughMedia(null);
+        setAttachedGraphSnapshot(null);
         setProofs((prev) => [created, ...prev]);
         showToast('🎉 Theorem preprint published live for peer review consensus!');
       } else {
@@ -436,13 +452,14 @@ export function ProofsPage() {
         </div>
       </div>
 
-      {/* Mobile-Only Segmented Pill Switcher (< 768px) */}
-      <div className="proofs-mobile-tabs" style={{ display: 'none', marginBottom: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '4px', backgroundColor: '#141418', borderRadius: '10px', border: '1px solid var(--border)' }}>
+      {/* Studio View Navigation Switcher */}
+      <div style={{ marginBottom: '18px' }}>
+        <div style={{ display: 'flex', gap: '8px', padding: '4px', backgroundColor: '#141418', borderRadius: '10px', border: '1px solid var(--border)', overflowX: 'auto', scrollbarWidth: 'none' }}>
           <button
+            type="button"
             onClick={() => setMobileTab('preprints')}
             style={{
-              padding: '9px 12px',
+              padding: '8px 16px',
               borderRadius: '7px',
               border: 'none',
               backgroundColor: mobileTab === 'preprints' ? 'var(--primary)' : 'transparent',
@@ -452,17 +469,19 @@ export function ProofsPage() {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
               gap: '6px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history_edu</span>
             Preprints ({filteredProofs.length})
           </button>
           <button
+            type="button"
             onClick={() => setMobileTab('axioms')}
             style={{
-              padding: '9px 12px',
+              padding: '8px 16px',
               borderRadius: '7px',
               border: 'none',
               backgroundColor: mobileTab === 'axioms' ? 'var(--primary)' : 'transparent',
@@ -472,16 +491,50 @@ export function ProofsPage() {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
               gap: '6px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>menu_book</span>
             Axiom Index ({axiomReference.length})
           </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('graphs')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '7px',
+              border: 'none',
+              backgroundColor: mobileTab === 'graphs' ? 'var(--primary)' : 'transparent',
+              color: mobileTab === 'graphs' ? '#121215' : 'var(--text-muted)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>show_chart</span>
+            2D & 3D Graph Studio
+          </button>
         </div>
       </div>
 
+      {mobileTab === 'graphs' ? (
+        <div style={{ width: '100%', marginBottom: '24px' }}>
+          <MathGraphStudio
+            onSnapshot={(snap) => {
+              setAttachedGraphSnapshot(snap.dataUrl);
+              showToast('✓ Graph snapshot captured! Opening composer...');
+              setIsComposerOpen(true);
+            }}
+          />
+        </div>
+      ) : (
       <div className="studio-grid">
         {/* Left Column: Proofs List & Filter (Hidden on mobile if Axiom tab is active) */}
         <div className={`proofs-col-stream ${mobileTab === 'axioms' ? 'proofs-mobile-hidden' : ''}`}>
@@ -651,6 +704,37 @@ export function ProofsPage() {
                         <div className="katex-display-container">
                           <MathRenderer content={`$$${p.latex_content}$$`} />
                         </div>
+                      </div>
+                    )}
+
+                    {/* Author Walkthrough / Plot Media */}
+                    {p.media && (
+                      <div style={{ margin: '14px 0', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border)', backgroundColor: '#121216' }}>
+                        {/\.(mp4|webm|mov|m4v|weba)$/i.test(p.media) || (typeof p.media === 'string' && p.media.startsWith('data:video')) ? (
+                          <div>
+                            <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--primary)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>video_camera_front</span>
+                              Theorem Walkthrough Explanation
+                            </div>
+                            <video src={resolveMediaUrl(p.media)} controls playsInline style={{ width: '100%', maxHeight: '340px', display: 'block', backgroundColor: '#000' }} />
+                          </div>
+                        ) : /\.(mp3|wav|m4a|ogg)$/i.test(p.media) || (typeof p.media === 'string' && p.media.startsWith('data:audio')) ? (
+                          <div style={{ padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--primary)', fontWeight: 600, marginBottom: '8px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>mic</span>
+                              Audio Walkthrough & Derivation Notes
+                            </div>
+                            <audio src={resolveMediaUrl(p.media)} controls style={{ width: '100%' }} />
+                          </div>
+                        ) : (
+                          <div>
+                            <img
+                              src={resolveMediaUrl(p.media)}
+                              alt="Mathematical Plot"
+                              style={{ width: '100%', maxHeight: '380px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -833,6 +917,7 @@ export function ProofsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Proof Composer Modal (Scrollable, Responsive on Mobile & Desktop) */}
       <Modal
@@ -1036,6 +1121,61 @@ export function ProofsPage() {
             />
           </div>
 
+          {/* Graph Plot & Proof Walkthrough Attachments */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', backgroundColor: '#141418', borderRadius: '8px', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text)' }}>
+                Visual & Audio Proof Walkthroughs
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowGraphStudioModal(true)}
+                className="btn-secondary"
+                style={{ fontSize: '11.5px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>show_chart</span>
+                {attachedGraphSnapshot ? 'Edit 2D/3D Graph' : 'Open 2D/3D Graph Studio'}
+              </button>
+            </div>
+
+            {attachedGraphSnapshot && (
+              <div style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--primary-border)' }}>
+                <img src={attachedGraphSnapshot} alt="Attached Graph" style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', backgroundColor: '#0B0B0E', display: 'block' }} />
+                <button
+                  type="button"
+                  onClick={() => setAttachedGraphSnapshot(null)}
+                  style={{
+                    position: 'absolute',
+                    top: '6px',
+                    right: '6px',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    color: '#EF4444',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                  Remove Plot
+                </button>
+              </div>
+            )}
+
+            <ProofWalkthroughRecorder
+              onWalkthroughReady={(file) => {
+                setWalkthroughMedia(file);
+                if (file) {
+                  showToast('✓ Proof walkthrough recorded and attached!');
+                }
+              }}
+            />
+          </div>
+
           {/* Modal Action Buttons (Pinned above keyboard, touch-friendly) */}
           <div
             style={{
@@ -1081,6 +1221,22 @@ export function ProofsPage() {
         variant="danger"
         isLoading={deletingProof}
       />
+
+      {/* 2D & 3D Graph Studio Modal */}
+      <Modal
+        isOpen={showGraphStudioModal}
+        onClose={() => setShowGraphStudioModal(false)}
+        title="2D Cartesian & 3D Surface Mathematical Graph Studio"
+        maxWidth="960px"
+      >
+        <MathGraphStudio
+          onSnapshot={(snap) => {
+            setAttachedGraphSnapshot(snap.dataUrl);
+            setShowGraphStudioModal(false);
+            showToast('✓ Graph snapshot attached to proof preprint!');
+          }}
+        />
+      </Modal>
 
       <style>{`
         @media (max-width: 768px) {

@@ -227,9 +227,9 @@ else:
         except Exception:
             pass
 
-# Request body and upload sizes (prevent 400 RequestDataTooBig on valid images/attachments)
-DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)  # 10 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=10 * 1024 * 1024, cast=int)  # 10 MB
+# Request body and upload sizes (prevent 400 RequestDataTooBig on valid media/video attachments)
+DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=50 * 1024 * 1024, cast=int)  # 50 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=50 * 1024 * 1024, cast=int)  # 50 MB
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

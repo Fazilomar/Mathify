@@ -43,7 +43,7 @@ class PostSerializer(serializers.ModelSerializer):
     likes_count = serializers.ReadOnlyField()
     comments_count = serializers.ReadOnlyField()
     is_liked = serializers.SerializerMethodField()
-    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=25)
+    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=50)
 
     def get_author(self, obj):
         return _safe_user_name(obj.author)
@@ -53,14 +53,14 @@ class PostSerializer(serializers.ModelSerializer):
 
     MAX_CONTENT_LENGTH = 4000
     MAX_LATEX_LENGTH = 8000
-    MAX_MEDIA_BYTES = 10 * 1024 * 1024
+    MAX_MEDIA_BYTES = 50 * 1024 * 1024
     IMAGE_TYPES = {
         'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
         'image/heic', 'image/heif', 'image/svg+xml', 'image/bmp', 'application/octet-stream',
     }
     IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.heif', '.svg', '.bmp')
     VIDEO_TYPES = {'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'}
-    VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.ogg', '.m4v')
+    VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.ogg', '.m4v', '.3gp')
 
     class Meta:
         model = Post

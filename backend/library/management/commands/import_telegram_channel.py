@@ -3,6 +3,10 @@ import re
 import asyncio
 import tempfile
 from pathlib import Path
+
+# Allow synchronous Django ORM calls inside asyncio context
+os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
+
 from decouple import config
 from django.core.management.base import BaseCommand, CommandError
 from django.core.files import File
@@ -17,7 +21,7 @@ COURSE_CODE_REGEX = re.compile(
 )
 
 EXPLICIT_LEVEL_REGEX = re.compile(
-    r'\b([1-5])00\s*(?:lvl|level|lv|l)\b',
+    r'\b([1-5])00\s*(?:lvl|level|lv|l)?\b',
     re.IGNORECASE
 )
 
@@ -261,7 +265,7 @@ class Command(BaseCommand):
     ):
         try:
             from telethon import TelegramClient
-            from telethon.tl.types import MessageMediaDocument, DocumentAttributeFilename
+            from telethon.tl.types import MessageMediaDocument, DocumentAttributeFilename, InputMessagesFilterDocument
         except ImportError:
             raise CommandError("Telethon is not installed. Please install it with 'pip install telethon'.")
 
@@ -303,7 +307,7 @@ class Command(BaseCommand):
 
         self.stdout.write("\nFetching messages and parsing academic materials...")
 
-        async for message in client.iter_messages(entity, limit=limit):
+        async for message in client.iter_messages(entity, limit=limit, filter=InputMessagesFilterDocument):
             stats['scanned'] += 1
 
             if not message.media or not isinstance(message.media, MessageMediaDocument):

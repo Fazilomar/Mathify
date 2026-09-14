@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Formula, Creation
+from mathify.media_fields import HybridFileField
 
 
 def _safe_user_name(user, fallback='Scholar'):
@@ -83,14 +84,28 @@ class CreationSerializer(serializers.ModelSerializer):
         queryset=Formula.objects.all(), source='formulas',
         many=True, write_only=True, required=False
     )
+    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=50)
 
     def get_author(self, obj):
         return _safe_user_name(obj.author)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.media:
+            try:
+                request = self.context.get('request')
+                if request:
+                    data['media'] = request.build_absolute_uri(instance.media.url)
+                else:
+                    data['media'] = instance.media.url
+            except Exception:
+                pass
+        return data
 
     class Meta:
         model = Creation
         fields = [
             'id', 'title', 'author', 'author_id', 'content', 'latex_content',
-            'formulas', 'formula_ids', 'visibility', 'created_at', 'updated_at',
+            'media', 'formulas', 'formula_ids', 'visibility', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'author', 'created_at', 'updated_at']
