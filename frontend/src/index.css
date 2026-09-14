@@ -1279,7 +1279,7 @@ button, input, textarea, select {
 }
 
 .groups-page-container {
-  /* Inherits app-container max-width */
+  width: 100%;
 }
 
 /* Groups Page Mobile Off-Canvas Drawer & Controls */
