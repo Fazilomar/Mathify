@@ -515,7 +515,7 @@ class CallViewSet(viewsets.ModelViewSet):
         from django.db.models import Q
         user = self.request.user
         return Call.objects.filter(
-            Q(initiator=user) | Q(group__memberships__user=user)
+            Q(initiator=user) | Q(group__memberships__user=user) | Q(participants=user) | Q(status=Call.STATUS_ACTIVE)
         ).distinct()
 
     def perform_create(self, serializer):
@@ -577,6 +577,14 @@ class CallViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def end(self, request, pk=None):
         call = self.get_object()
+        user = request.user
+        is_host = bool(
+            call.initiator_id == user.id or
+            (call.group and (call.group.created_by_id == user.id or call.group.memberships.filter(user=user, role='admin').exists())) or
+            user.is_staff
+        )
+        if not is_host:
+            return Response({'detail': 'Only the host can end the meeting for everyone.'}, status=status.HTTP_403_FORBIDDEN)
         _sync_call_ended(call, request.user)
         return Response(CallSerializer(call).data)
 
