@@ -1553,17 +1553,21 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                     onClick={handleLeaveCall}
                     className="seminar-leave-btn"
                     style={{
+                      height: '46px',
+                      padding: '0 18px',
                       borderRadius: '23px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '5px',
+                      gap: '7px',
                       border: '1px solid var(--border)',
                       backgroundColor: '#27272A',
                       color: 'var(--text)',
                       fontWeight: 600,
+                      fontSize: '13.5px',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
+                      boxSizing: 'border-box',
                     }}
                     title="Leave meeting (meeting stays open for others)"
                   >
@@ -1576,18 +1580,22 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                     onClick={() => setShowEndConfirm(true)}
                     className="seminar-end-btn"
                     style={{
+                      height: '46px',
+                      padding: '0 22px',
                       borderRadius: '23px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
+                      gap: '8px',
                       border: 'none',
                       backgroundColor: '#EF4444',
                       color: '#FFFFFF',
                       fontWeight: 600,
+                      fontSize: '13.5px',
                       cursor: 'pointer',
                       boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
                       transition: 'all 0.15s ease',
+                      boxSizing: 'border-box',
                     }}
                     title="End seminar for all participants"
                   >
@@ -1601,23 +1609,27 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                   onClick={handleLeaveCall}
                   className="seminar-end-btn"
                   style={{
+                    height: '46px',
+                    padding: '0 22px',
                     borderRadius: '23px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '6px',
+                    gap: '8px',
                     border: 'none',
                     backgroundColor: '#EF4444',
                     color: '#FFFFFF',
                     fontWeight: 600,
+                    fontSize: '13.5px',
                     cursor: 'pointer',
                     boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
                     transition: 'all 0.15s ease',
+                    boxSizing: 'border-box',
                   }}
-                  title="End meeting for yourself"
+                  title="Leave meeting"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>call_end</span>
-                  <span className="seminar-end-btn-text">End Meeting</span>
+                  <span className="seminar-end-btn-text">Leave</span>
                 </button>
               )}
             </div>

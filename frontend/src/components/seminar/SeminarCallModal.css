@@ -110,6 +110,62 @@
   flex-shrink: 0;
 }
 
+.seminar-leave-btn {
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  background-color: #27272A;
+  color: var(--text, #F8FAFC);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.seminar-leave-btn:hover {
+  background-color: #373742;
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+.seminar-end-btn {
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  background-color: #EF4444;
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.seminar-end-btn:hover {
+  background-color: #DC2626;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.55);
+  transform: translateY(-1px);
+}
+
+.seminar-end-btn:active,
+.seminar-leave-btn:active {
+  transform: translateY(0);
+}
+
 /* ============================================================== */
 /* Mobile Responsive Breakpoints                                 */
 /* ============================================================== */
