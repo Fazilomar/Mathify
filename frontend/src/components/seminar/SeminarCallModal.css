@@ -1,0 +1,246 @@
+/* Seminar Call Modal - Full Mobile Responsiveness & Grid Optimization */
+
+.seminar-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(10, 10, 14, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.seminar-modal-card {
+  width: 100%;
+  max-width: 1020px;
+  height: 88vh;
+  max-height: 800px;
+  display: flex;
+  flex-direction: column;
+  background-color: #16161B;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.85);
+  transition: max-width 0.3s ease;
+  box-sizing: border-box;
+}
+
+.seminar-modal-card.prejoin {
+  max-width: 760px;
+  height: auto;
+  max-height: 680px;
+}
+
+/* Pre-join Green Room */
+.seminar-prejoin-content {
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  max-height: 100%;
+}
+
+.seminar-prejoin-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+/* Active Call Top Bar */
+.seminar-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #141418;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.seminar-header-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #FFF);
+}
+
+/* Video Tile Grid */
+.seminar-video-grid {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  align-content: center;
+  box-sizing: border-box;
+}
+
+/* Bottom Call Controls Toolbar */
+.seminar-toolbar {
+  padding: 14px 24px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: #141418;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.seminar-tool-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+/* ============================================================== */
+/* Mobile Responsive Breakpoints                                 */
+/* ============================================================== */
+
+@media (max-width: 768px) {
+  .seminar-modal-overlay {
+    padding: 0 !important;
+  }
+
+  .seminar-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  .seminar-modal-card.prejoin {
+    max-width: 100% !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+
+  .seminar-prejoin-content {
+    padding: 16px 14px !important;
+    gap: 16px !important;
+    height: 100% !important;
+    justify-content: flex-start;
+  }
+
+  .seminar-prejoin-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  .seminar-header {
+    padding: 10px 12px !important;
+    gap: 8px;
+  }
+
+  .seminar-header-title {
+    font-size: 13.5px !important;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .seminar-video-grid {
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+
+  .seminar-toolbar {
+    padding: 10px 8px !important;
+    gap: 6px !important;
+    background-color: #121216 !important;
+  }
+
+  .seminar-tool-btn {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .seminar-tool-btn span.material-symbols-outlined {
+    font-size: 19px !important;
+  }
+
+  /* Screen sharing is not practically supported on mobile browsers */
+  .seminar-screen-btn {
+    display: none !important;
+  }
+
+  .seminar-leave-btn {
+    padding: 0 12px !important;
+    height: 40px !important;
+    font-size: 12px !important;
+  }
+
+  .seminar-end-btn {
+    padding: 0 14px !important;
+    height: 40px !important;
+    font-size: 12px !important;
+  }
+
+  .seminar-end-btn-text {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .seminar-header-meta {
+    display: none !important;
+  }
+
+  .seminar-copy-btn span.copy-label {
+    display: none !important;
+  }
+
+  .seminar-toolbar {
+    gap: 5px !important;
+    padding: 8px 6px !important;
+  }
+
+  .seminar-tool-btn {
+    width: 38px !important;
+    height: 38px !important;
+  }
+}
+
+/* Emoji Picker Popover desktop & mobile layout */
+.emoji-reaction-picker-popover {
+  position: absolute;
+  bottom: 72px;
+  right: -80px;
+  width: 340px;
+  max-width: calc(100vw - 28px);
+  max-height: 420px;
+}
+
+@media (max-width: 640px) {
+  .emoji-reaction-picker-popover {
+    position: fixed !important;
+    bottom: 66px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 380px !important;
+  }
+}

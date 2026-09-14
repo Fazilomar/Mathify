@@ -113,12 +113,8 @@ export function EmojiReactionPicker({ isOpen, onClose, onSelectEmoji }) {
       ref={pickerRef}
       role="dialog"
       aria-label="Emoji reaction picker"
+      className="emoji-reaction-picker-popover"
       style={{
-        position: 'absolute',
-        bottom: '76px',
-        right: '20px',
-        width: '340px',
-        maxHeight: '420px',
         backgroundColor: 'rgba(22, 22, 29, 0.97)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',

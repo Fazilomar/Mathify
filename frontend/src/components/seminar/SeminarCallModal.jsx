@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import AudioNoiseFilter from '../../services/audioNoiseFilter';
 import EmojiReactionPicker from './EmojiReactionPicker';
 import { Room, RoomEvent, Track } from 'livekit-client';
+import './SeminarCallModal.css';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -357,24 +358,46 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   }, []);
 
   const cleanupTracksAndConnections = useCallback(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    if (screenTrackRef.current) {
-      screenTrackRef.current.stop();
-    }
-    if (screenAudioTrackRef.current) {
-      screenAudioTrackRef.current.stop();
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close().catch(() => { });
-    }
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-    }
-    Object.values(peerConnectionsRef.current).forEach((pc) => {
-      try { pc.close(); } catch { }
-    });
+    try {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          try { track.stop(); } catch { }
+        });
+        localStreamRef.current = null;
+      }
+    } catch { }
+
+    try {
+      if (screenTrackRef.current) {
+        screenTrackRef.current.stop();
+        screenTrackRef.current = null;
+      }
+      if (screenAudioTrackRef.current) {
+        screenAudioTrackRef.current.stop();
+        screenAudioTrackRef.current = null;
+      }
+    } catch { }
+
+    try {
+      if (audioFilterRef.current) {
+        audioFilterRef.current.stop();
+        audioFilterRef.current = null;
+      }
+    } catch { }
+
+    try {
+      if (livekitRoomRef.current) {
+        livekitRoomRef.current.disconnect();
+        livekitRoomRef.current = null;
+      }
+    } catch { }
+
+    try {
+      Object.values(peerConnectionsRef.current).forEach((pc) => {
+        try { pc.close(); } catch { }
+      });
+      peerConnectionsRef.current = {};
+    } catch { }
   }, []);
 
   const getOrCreatePeerConnection = useCallback((peerUsername) => {
@@ -683,17 +706,19 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   const handleLeaveCall = async () => {
     if (isEndingMeeting) return;
     setIsEndingMeeting(true);
+    setShowEndConfirm(false);
     try {
       await sendSignal(null, 'leave', { username: user?.username }).catch(() => { });
+      const timeout = new Promise((resolve) => setTimeout(resolve, 2500));
       if (meeting?.id) {
-        await API.post(`/api/social/calls/${meeting.id}/leave/`, {}).catch(() => { });
+        await Promise.race([API.post(`/api/social/calls/${meeting.id}/leave/`, {}), timeout]).catch(() => { });
       } else if (group?.id) {
-        await API.post(`/api/social/groups/${group.id}/leave_call/`, {}).catch(() => { });
+        await Promise.race([API.post(`/api/social/groups/${group.id}/leave_call/`, {}), timeout]).catch(() => { });
       }
       onMeetingEnded?.(meetingCode, meeting?.id);
     } finally {
       cleanupTracksAndConnections();
-      onClose();
+      onClose?.();
       setIsEndingMeeting(false);
     }
   };
@@ -701,19 +726,21 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   const handleEndMeetingForAll = async () => {
     if (isEndingMeeting) return;
     setIsEndingMeeting(true);
+    setShowEndConfirm(false);
     try {
       await sendSignal(null, 'end_meeting', {}).catch(() => { });
+      const timeout = new Promise((resolve) => setTimeout(resolve, 2500));
       if (meeting?.id) {
-        await API.post(`/api/social/calls/${meeting.id}/end/`, {});
+        await Promise.race([API.post(`/api/social/calls/${meeting.id}/end/`, {}), timeout]).catch(() => { });
       } else if (group?.id) {
-        await API.post(`/api/social/groups/${group.id}/end_call/`, {});
+        await Promise.race([API.post(`/api/social/groups/${group.id}/end_call/`, {}), timeout]).catch(() => { });
       }
       onMeetingEnded?.(meetingCode, meeting?.id);
     } catch (err) {
       console.warn('Error ending meeting:', err);
     } finally {
       cleanupTracksAndConnections();
-      onClose();
+      onClose?.();
       setIsEndingMeeting(false);
     }
   };
@@ -735,41 +762,13 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(10, 10, 14, 0.94)',
-        backdropFilter: 'blur(12px)',
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 16px',
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: isPreJoin ? '760px' : '1020px',
-          height: isPreJoin ? 'auto' : '88vh',
-          maxHeight: isPreJoin ? '680px' : '800px',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#16161B',
-          border: '1px solid var(--border)',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.85)',
-          transition: 'max-width 0.3s ease',
-        }}
-      >
+    <div className="seminar-modal-overlay">
+      <div className={`seminar-modal-card ${isPreJoin ? 'prejoin' : ''}`}>
         {/* ========================================================= */}
         {/* GOOGLE MEET STYLE GREEN ROOM / PRE-JOIN SCREEN           */}
         {/* ========================================================= */}
         {isPreJoin ? (
-          <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="seminar-prejoin-content">
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
@@ -883,7 +882,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
             )}
 
             {/* Pre-Join Grid: Camera Preview & Actions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', alignItems: 'center' }}>
+            <div className="seminar-prejoin-grid">
               {/* Camera Preview Tile */}
               <div
                 style={{
@@ -1176,17 +1175,8 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
           /* ========================================================= */
           <>
             {/* Conference Top Bar */}
-            <div
-              style={{
-                padding: '14px 20px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: '#141418',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="seminar-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <span
                   style={{
                     width: '10px',
@@ -1195,28 +1185,30 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                     backgroundColor: '#EF4444',
                     boxShadow: '0 0 8px #EF4444',
                     animation: 'pulse 1.5s infinite',
+                    flexShrink: 0,
                   }}
                 />
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <h3 className="seminar-header-title">
                       {meetingTitle}
                     </h3>
-                    <span className="badge-academic" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                      {livekitConnected ? 'LiveKit SFU (100+)' : 'WebRTC P2P'}
+                    <span className="badge-academic" style={{ fontSize: '10px', padding: '2px 6px', flexShrink: 0 }}>
+                      {livekitConnected ? 'LiveKit SFU' : 'P2P'}
                     </span>
                   </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                  <div className="seminar-header-meta" style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                     Code: <strong style={{ color: 'var(--primary)' }}>{meetingCode}</strong> • {group?.name}
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                 {/* Copy Link Button */}
                 <button
                   type="button"
                   onClick={handleCopyLink}
+                  className="seminar-copy-btn"
                   style={{
                     padding: '6px 12px',
                     borderRadius: '6px',
@@ -1234,7 +1226,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                   <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                     {copiedLink ? 'check' : 'content_copy'}
                   </span>
-                  <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                  <span className="copy-label">{copiedLink ? 'Copied!' : 'Copy Link'}</span>
                 </button>
 
                 {/* Call Timer */}
@@ -1296,19 +1288,16 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
               {/* Video Tile Grid */}
               <div
+                className="seminar-video-grid"
                 style={{
-                  flex: 1,
-                  padding: '16px',
-                  overflowY: 'auto',
-                  display: 'grid',
                   gridTemplateColumns:
-                    participants.length <= 2
-                      ? '1fr 1fr'
+                    participants.length === 1
+                      ? '1fr'
+                      : participants.length === 2
+                      ? 'repeat(auto-fit, minmax(260px, 1fr))'
                       : participants.length <= 6
-                      ? 'repeat(auto-fit, minmax(280px, 1fr))'
-                      : 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '14px',
-                  alignContent: 'center',
+                      ? 'repeat(auto-fit, minmax(220px, 1fr))'
+                      : 'repeat(auto-fit, minmax(160px, 1fr))',
                 }}
               >
               {participants.map((p) => {
@@ -1466,33 +1455,15 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               </div>
             </div>
 
-            {/* Conference Bottom Action Bar */}
-            <div
-              style={{
-                padding: '14px 24px',
-                borderTop: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '16px',
-                backgroundColor: '#141418',
-              }}
-            >
+            {/* Bottom Call Controls Toolbar */}
+            <div className="seminar-toolbar">
               <button
                 type="button"
                 onClick={handleToggleMic}
+                className="seminar-tool-btn"
                 style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid var(--border)',
                   backgroundColor: micEnabled ? '#22222A' : '#7F1D1D',
                   color: micEnabled ? 'var(--text)' : '#F87171',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                 }}
                 title={micEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
               >
@@ -1504,18 +1475,10 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               <button
                 type="button"
                 onClick={handleToggleCam}
+                className="seminar-tool-btn"
                 style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid var(--border)',
                   backgroundColor: camEnabled ? '#22222A' : '#7F1D1D',
                   color: camEnabled ? 'var(--text)' : '#F87171',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                 }}
                 title={camEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
               >
@@ -1527,18 +1490,10 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               <button
                 type="button"
                 onClick={handleToggleScreenShare}
+                className="seminar-tool-btn seminar-screen-btn"
                 style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid var(--border)',
                   backgroundColor: screenSharing ? 'var(--primary-subtle)' : '#22222A',
                   color: screenSharing ? 'var(--primary)' : 'var(--text)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                 }}
                 title={screenSharing ? 'Stop Sharing Screen' : 'Share Screen'}
               >
@@ -1551,19 +1506,12 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               <button
                 type="button"
                 onClick={handleToggleHandRaise}
+                className="seminar-tool-btn"
                 style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   border: isHandRaised ? '1.5px solid #F59E0B' : '1px solid var(--border)',
                   backgroundColor: isHandRaised ? 'rgba(245, 158, 11, 0.22)' : '#22222A',
                   color: isHandRaised ? '#FBBF24' : 'var(--text)',
                   boxShadow: isHandRaised ? '0 0 16px rgba(245, 158, 11, 0.45)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                 }}
                 title={isHandRaised ? 'Lower Hand' : 'Raise Hand (✋)'}
               >
@@ -1577,18 +1525,11 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  className="seminar-tool-btn"
                   style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     border: showEmojiPicker ? '1.5px solid var(--primary)' : '1px solid var(--border)',
                     backgroundColor: showEmojiPicker ? 'rgba(229, 169, 60, 0.2)' : '#22222A',
                     color: showEmojiPicker ? 'var(--primary)' : 'var(--text)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
                   }}
                   title="React with Emoji"
                 >
@@ -1606,83 +1547,77 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               </div>
 
               {isHost ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
                     onClick={handleLeaveCall}
+                    className="seminar-leave-btn"
                     style={{
-                      padding: '0 18px',
-                      height: '46px',
                       borderRadius: '23px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '6px',
+                      gap: '5px',
                       border: '1px solid var(--border)',
                       backgroundColor: '#27272A',
                       color: 'var(--text)',
                       fontWeight: 600,
-                      fontSize: '13px',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
                     }}
                     title="Leave meeting (meeting stays open for others)"
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>logout</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
                     <span>Leave</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowEndConfirm(true)}
+                    className="seminar-end-btn"
                     style={{
-                      padding: '0 22px',
-                      height: '46px',
                       borderRadius: '23px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '8px',
+                      gap: '6px',
                       border: 'none',
                       backgroundColor: '#EF4444',
                       color: '#FFFFFF',
                       fontWeight: 600,
-                      fontSize: '13.5px',
                       cursor: 'pointer',
                       boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
                       transition: 'all 0.15s ease',
                     }}
                     title="End seminar for all participants"
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
-                    <span>End Meeting</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>call_end</span>
+                    <span className="seminar-end-btn-text">End Meeting</span>
                   </button>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={handleLeaveCall}
+                  className="seminar-end-btn"
                   style={{
-                    padding: '0 22px',
-                    height: '46px',
                     borderRadius: '23px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '8px',
+                    gap: '6px',
                     border: 'none',
                     backgroundColor: '#EF4444',
                     color: '#FFFFFF',
                     fontWeight: 600,
-                    fontSize: '13.5px',
                     cursor: 'pointer',
                     boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)',
                     transition: 'all 0.15s ease',
                   }}
                   title="End meeting for yourself"
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>call_end</span>
-                  <span>End Meeting</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>call_end</span>
+                  <span className="seminar-end-btn-text">End Meeting</span>
                 </button>
               )}
             </div>
@@ -1798,7 +1733,10 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
                 <button
                   type="button"
-                  onClick={() => setShowEndConfirm(false)}
+                  onClick={() => {
+                    setShowEndConfirm(false);
+                    setIsEndingMeeting(false);
+                  }}
                   style={{
                     background: 'none',
                     border: 'none',
