@@ -125,9 +125,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
     broadcastData({ type: 'EMOJI', emoji, user: user?.username || 'Scholar' });
   };
 
-  // -------------------------------------------------------------
-  // 1. Initialize Local Media (Webcam & Noise-Filtered Microphone)
-  // -------------------------------------------------------------
+  // Initialize Local Media (Webcam & Noise-Filtered Microphone)
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -295,7 +293,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
         room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
           if (!room.canPlaybackAudio) {
-            room.startAudio().catch(() => {});
+            room.startAudio().catch(() => { });
           }
         });
 
@@ -329,7 +327,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         if (isSubscribed) {
           setLivekitConnected(true);
           if (!room.canPlaybackAudio) {
-            room.startAudio().catch(() => {});
+            room.startAudio().catch(() => { });
           }
           if (localStreamRef.current && room.localParticipant) {
             const vTrack = localStreamRef.current.getVideoTracks()[0];
@@ -748,7 +746,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
   const handleJoinLive = (startMuted = false) => {
     if (livekitRoomRef.current) {
-      livekitRoomRef.current.startAudio().catch(() => {});
+      livekitRoomRef.current.startAudio().catch(() => { });
     }
     if (startMuted && micEnabled) {
       handleToggleMic();
@@ -1349,164 +1347,164 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                     participants.length === 1
                       ? '1fr'
                       : participants.length === 2
-                      ? 'repeat(auto-fit, minmax(260px, 1fr))'
-                      : participants.length <= 6
-                      ? 'repeat(auto-fit, minmax(220px, 1fr))'
-                      : 'repeat(auto-fit, minmax(160px, 1fr))',
+                        ? 'repeat(auto-fit, minmax(260px, 1fr))'
+                        : participants.length <= 6
+                          ? 'repeat(auto-fit, minmax(220px, 1fr))'
+                          : 'repeat(auto-fit, minmax(160px, 1fr))',
                 }}
               >
-              {participants.map((p) => {
-                const isLocal = p.isMe;
-                const remoteStream = remoteStreams[p.name];
-                const hasVideo = isLocal ? (camEnabled || screenSharing) : (remoteStream && remoteStream.getVideoTracks().length > 0);
-                const speaking = isLocal ? isSpeakingLocal : p.isSpeaking;
+                {participants.map((p) => {
+                  const isLocal = p.isMe;
+                  const remoteStream = remoteStreams[p.name];
+                  const hasVideo = isLocal ? (camEnabled || screenSharing) : (remoteStream && remoteStream.getVideoTracks().length > 0);
+                  const speaking = isLocal ? isSpeakingLocal : p.isSpeaking;
 
-                return (
-                  <div
-                    key={p.id}
-                    style={{
-                      position: 'relative',
-                      width: '100%',
-                      aspectRatio: '16/9',
-                      backgroundColor: '#0A0A0F',
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      border: speaking ? '2.5px solid #22C55E' : '1px solid var(--border)',
-                      boxShadow: speaking ? '0 0 16px rgba(34, 197, 94, 0.4)' : 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'border 0.2s ease',
-                    }}
-                  >
-                    {isLocal ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          transform: screenSharing ? 'none' : 'scaleX(-1)',
-                          display: (camEnabled || screenSharing) ? 'block' : 'none',
-                        }}
-                      />
-                    ) : remoteStream ? (
-                      <video
-                        autoPlay
-                        playsInline
-                        ref={(el) => {
-                          if (el && el.srcObject !== remoteStream) {
-                            el.srcObject = remoteStream;
-                          }
-                        }}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : null}
-
-                    {!hasVideo && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '64px',
-                            height: '64px',
-                            borderRadius: '50%',
-                            backgroundColor: '#27272A',
-                            color: 'var(--primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '22px',
-                            fontWeight: 700,
-                            border: '2px solid rgba(229, 169, 60, 0.3)',
-                          }}
-                        >
-                          {p.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>Camera Off</span>
-                      </div>
-                    )}
-
-                    {/* Participant Info Tag */}
+                  return (
                     <div
+                      key={p.id}
                       style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        left: '10px',
-                        right: '10px',
+                        position: 'relative',
+                        width: '100%',
+                        aspectRatio: '16/9',
+                        backgroundColor: '#0A0A0F',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        border: speaking ? '2.5px solid #22C55E' : '1px solid var(--border)',
+                        boxShadow: speaking ? '0 0 16px rgba(34, 197, 94, 0.4)' : 'none',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        pointerEvents: 'none',
+                        justifyContent: 'center',
+                        transition: 'border 0.2s ease',
                       }}
                     >
-                      <span
+                      {isLocal ? (
+                        <video
+                          ref={localVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transform: screenSharing ? 'none' : 'scaleX(-1)',
+                            display: (camEnabled || screenSharing) ? 'block' : 'none',
+                          }}
+                        />
+                      ) : remoteStream ? (
+                        <video
+                          autoPlay
+                          playsInline
+                          ref={(el) => {
+                            if (el && el.srcObject !== remoteStream) {
+                              el.srcObject = remoteStream;
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                      ) : null}
+
+                      {!hasVideo && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: '64px',
+                              height: '64px',
+                              borderRadius: '50%',
+                              backgroundColor: '#27272A',
+                              color: 'var(--primary)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '22px',
+                              fontWeight: 700,
+                              border: '2px solid rgba(229, 169, 60, 0.3)',
+                            }}
+                          >
+                            {p.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-subtle)' }}>Camera Off</span>
+                        </div>
+                      )}
+
+                      {/* Participant Info Tag */}
+                      <div
                         style={{
-                          backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                          backdropFilter: 'blur(4px)',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: 'var(--text)',
+                          position: 'absolute',
+                          bottom: '10px',
+                          left: '10px',
+                          right: '10px',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          justifyContent: 'space-between',
+                          pointerEvents: 'none',
                         }}
                       >
-                        <span>{p.name} {isLocal && '(You)'}</span>
-                        {(handRaisedUsers[p.name] || (isLocal && isHandRaised)) && (
-                          <span style={{ fontSize: '13px' }} title="Hand raised">✋</span>
-                        )}
-                      </span>
+                        <span
+                          style={{
+                            backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                            backdropFilter: 'blur(4px)',
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: 'var(--text)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>{p.name} {isLocal && '(You)'}</span>
+                          {(handRaisedUsers[p.name] || (isLocal && isHandRaised)) && (
+                            <span style={{ fontSize: '13px' }} title="Hand raised">✋</span>
+                          )}
+                        </span>
 
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {isLocal && !micEnabled && (
-                          <span
-                            className="material-symbols-outlined"
-                            style={{
-                              fontSize: '15px',
-                              color: '#EF4444',
-                              backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                              padding: '3px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            mic_off
-                          </span>
-                        )}
-                        {!hasVideo && (
-                          <span
-                            className="material-symbols-outlined"
-                            style={{
-                              fontSize: '15px',
-                              color: '#EF4444',
-                              backgroundColor: 'rgba(10, 10, 14, 0.75)',
-                              padding: '3px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            videocam_off
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {isLocal && !micEnabled && (
+                            <span
+                              className="material-symbols-outlined"
+                              style={{
+                                fontSize: '15px',
+                                color: '#EF4444',
+                                backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                                padding: '3px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              mic_off
+                            </span>
+                          )}
+                          {!hasVideo && (
+                            <span
+                              className="material-symbols-outlined"
+                              style={{
+                                fontSize: '15px',
+                                color: '#EF4444',
+                                backgroundColor: 'rgba(10, 10, 14, 0.75)',
+                                padding: '3px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              videocam_off
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
               </div>
             </div>
 
