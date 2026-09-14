@@ -3,6 +3,7 @@ import re
 import asyncio
 import tempfile
 from pathlib import Path
+from decouple import config
 from django.core.management.base import BaseCommand, CommandError
 from django.core.files import File
 from django.contrib.auth import get_user_model
@@ -143,20 +144,20 @@ class Command(BaseCommand):
         parser.add_argument(
             '--api-id',
             type=str,
-            default=os.environ.get('TELEGRAM_API_ID', ''),
-            help="Telegram API ID (or set TELEGRAM_API_ID env variable)"
+            default=config('TELEGRAM_API_ID', default=os.environ.get('TELEGRAM_API_ID', '')),
+            help="Telegram API ID (or set TELEGRAM_API_ID in backend/.env)"
         )
         parser.add_argument(
             '--api-hash',
             type=str,
-            default=os.environ.get('TELEGRAM_API_HASH', ''),
-            help="Telegram API Hash (or set TELEGRAM_API_HASH env variable)"
+            default=config('TELEGRAM_API_HASH', default=os.environ.get('TELEGRAM_API_HASH', '')),
+            help="Telegram API Hash (or set TELEGRAM_API_HASH in backend/.env)"
         )
         parser.add_argument(
             '--bot-token',
             type=str,
-            default=os.environ.get('TELEGRAM_BOT_TOKEN', ''),
-            help="Optional Telegram Bot Token for bot authentication"
+            default=config('TELEGRAM_BOT_TOKEN', default=os.environ.get('TELEGRAM_BOT_TOKEN', '')),
+            help="Optional Telegram Bot Token (or set TELEGRAM_BOT_TOKEN in backend/.env)"
         )
         parser.add_argument(
             '--session',
