@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import AudioNoiseFilter from '../../services/audioNoiseFilter';
+import EmojiReactionPicker from './EmojiReactionPicker';
+import { Room, RoomEvent, Track } from 'livekit-client';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -61,6 +64,11 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   ]);
 
   const [remoteStreams, setRemoteStreams] = useState({});
+  const [floatingReactions, setFloatingReactions] = useState([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [handRaisedUsers, setHandRaisedUsers] = useState({});
+  const [livekitConnected, setLivekitConnected] = useState(false);
 
   const localStreamRef = useRef(null);
   const cameraTrackRef = useRef(null);
@@ -68,16 +76,56 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   const screenAudioTrackRef = useRef(null);
   const localVideoRef = useRef(null);
   const preJoinVideoRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const animFrameRef = useRef(null);
 
+  const audioFilterRef = useRef(null);
+  const livekitRoomRef = useRef(null);
   const peerConnectionsRef = useRef({});
   const lastSignalIdRef = useRef(0);
   const isMountedRef = useRef(true);
 
+  const triggerFloatingReaction = useCallback((emoji, senderName) => {
+    const newReaction = {
+      id: `${Date.now()}-${Math.random()}`,
+      emoji,
+      user: senderName,
+      leftPercent: 8 + Math.random() * 82,
+      duration: 2.8 + Math.random() * 0.8,
+    };
+    setFloatingReactions((prev) => [...prev.slice(-30), newReaction]);
+    setTimeout(() => {
+      setFloatingReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
+    }, 3800);
+  }, []);
+
+  const broadcastData = useCallback((dataObj) => {
+    if (livekitRoomRef.current && livekitRoomRef.current.state === 'connected') {
+      try {
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(JSON.stringify(dataObj));
+        livekitRoomRef.current.localParticipant.publishData(bytes, { reliable: true });
+      } catch (e) {
+        console.warn('LiveKit data broadcast error:', e);
+      }
+    }
+    // Also send via fallback Django signal for P2P mesh
+    sendSignal(null, 'data', dataObj);
+  }, []);
+
+  const handleToggleHandRaise = () => {
+    const nextState = !isHandRaised;
+    setIsHandRaised(nextState);
+    const myName = user?.username || 'You';
+    setHandRaisedUsers((prev) => ({ ...prev, [myName]: nextState }));
+    broadcastData({ type: 'HAND_RAISE', isHandRaised: nextState, user: myName });
+  };
+
+  const handleSelectEmoji = (emoji) => {
+    triggerFloatingReaction(emoji, 'You');
+    broadcastData({ type: 'EMOJI', emoji, user: user?.username || 'Scholar' });
+  };
+
   // -------------------------------------------------------------
-  // 1. Initialize Local Media (Webcam & Microphone)
+  // 1. Initialize Local Media (Webcam & Noise-Filtered Microphone)
   // -------------------------------------------------------------
   useEffect(() => {
     isMountedRef.current = true;
@@ -88,11 +136,21 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: { echoCancellation: true, noiseSuppression: true },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
           });
         } catch (videoErr) {
           console.warn('Camera failed/denied, falling back to audio-only:', videoErr);
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
           setCamEnabled(false);
         }
 
@@ -111,7 +169,19 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
           localVideoRef.current.srcObject = stream;
         }
 
-        setupAudioAnalyser(stream);
+        // Initialize high-pass/low-pass noise gate filter
+        if (audioFilterRef.current) {
+          audioFilterRef.current.stop();
+        }
+        audioFilterRef.current = new AudioNoiseFilter({
+          onVolume: (vol) => {
+            if (isMountedRef.current) setAudioLevel(vol);
+          },
+          onSpeakingChange: (speaking) => {
+            if (isMountedRef.current) setIsSpeakingLocal(speaking);
+          },
+        });
+        audioFilterRef.current.start(stream);
 
         Object.values(peerConnectionsRef.current).forEach((pc) => {
           stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -130,6 +200,9 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
 
     return () => {
       isMountedRef.current = false;
+      if (audioFilterRef.current) {
+        audioFilterRef.current.stop();
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -139,14 +212,106 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
       if (screenAudioTrackRef.current) {
         screenAudioTrackRef.current.stop();
       }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close().catch(() => { });
-      }
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
     };
   }, []);
+
+  // Connect to LiveKit SFU media server if configured on backend
+  useEffect(() => {
+    if (isPreJoin || !meeting?.id) return;
+
+    let isSubscribed = true;
+
+    const connectLiveKit = async () => {
+      try {
+        const res = await API.get(`/api/social/calls/${meeting.id}/token/`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.fallback_mode || !data.token || !data.server_url) {
+          console.info('LiveKit SFU not configured on server. Operating in WebRTC P2P fallback mode.');
+          return;
+        }
+
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          audioCaptureDefaults: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        livekitRoomRef.current = room;
+
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === Track.Kind.Video || track.kind === Track.Kind.Audio) {
+            const mediaStream = new MediaStream([track.mediaStreamTrack]);
+            setRemoteStreams((prev) => ({
+              ...prev,
+              [participant.identity]: mediaStream,
+            }));
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+          setRemoteStreams((prev) => {
+            const next = { ...prev };
+            delete next[participant.identity];
+            return next;
+          });
+        });
+
+        room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const activeIdentities = new Set(speakers.map((s) => s.identity));
+          setParticipants((prev) =>
+            prev.map((p) => ({
+              ...p,
+              isSpeaking: p.isMe ? isSpeakingLocal : activeIdentities.has(p.name),
+            }))
+          );
+        });
+
+        room.on(RoomEvent.DataReceived, (payload, participant) => {
+          try {
+            const decoder = new TextDecoder();
+            const str = decoder.decode(payload);
+            const msg = JSON.parse(str);
+            if (msg.type === 'EMOJI') {
+              triggerFloatingReaction(msg.emoji, participant?.name || participant?.identity || msg.user);
+            } else if (msg.type === 'HAND_RAISE') {
+              const uName = participant?.name || participant?.identity || msg.user;
+              setHandRaisedUsers((prev) => ({ ...prev, [uName]: msg.isHandRaised }));
+            }
+          } catch (e) {
+            console.warn('Error parsing LiveKit data message:', e);
+          }
+        });
+
+        await room.connect(data.server_url, data.token);
+        if (isSubscribed) {
+          setLivekitConnected(true);
+          if (localStreamRef.current) {
+            const vTrack = localStreamRef.current.getVideoTracks()[0];
+            const aTrack = localStreamRef.current.getAudioTracks()[0];
+            if (vTrack && camEnabled) room.localParticipant.publishTrack(vTrack);
+            if (aTrack && micEnabled) room.localParticipant.publishTrack(aTrack);
+          }
+        }
+      } catch (err) {
+        console.warn('LiveKit SFU connection failed (using P2P mesh):', err);
+      }
+    };
+
+    connectLiveKit();
+
+    return () => {
+      isSubscribed = false;
+      if (livekitRoomRef.current) {
+        livekitRoomRef.current.disconnect();
+        livekitRoomRef.current = null;
+      }
+      setLivekitConnected(false);
+    };
+  }, [isPreJoin, meeting?.id]);
 
   // Sync video elements when cam/screen state or prejoin state changes
   useEffect(() => {
@@ -156,46 +321,6 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [isPreJoin, camEnabled, screenSharing]);
-
-  // -------------------------------------------------------------
-  // 2. Real Voice Activity & Speaking Detection + Volume Meter
-  // -------------------------------------------------------------
-  const setupAudioAnalyser = (stream) => {
-    const audioTrack = stream.getAudioTracks()[0];
-    if (!audioTrack) return;
-
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      const checkVolume = () => {
-        if (!isMountedRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
-        }
-        const avg = sum / dataArray.length;
-        setIsSpeakingLocal(avg > 18);
-        setAudioLevel(Math.min(100, Math.round((avg / 80) * 100)));
-        animFrameRef.current = requestAnimationFrame(checkVolume);
-      };
-
-      checkVolume();
-    } catch (e) {
-      console.warn('AudioContext setup error:', e);
-    }
-  };
 
   // -------------------------------------------------------------
   // 3. WebRTC Signaling & Multi-User Peer Connections
@@ -398,6 +523,12 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
             } else if (sig.type === 'leave') {
               closeAndRemovePeer(sender);
               setParticipants((prev) => prev.filter((p) => p.name !== sender));
+            } else if (sig.type === 'data' && sig.payload) {
+              if (sig.payload.type === 'EMOJI') {
+                triggerFloatingReaction(sig.payload.emoji, sig.sender);
+              } else if (sig.payload.type === 'HAND_RAISE') {
+                setHandRaisedUsers((prev) => ({ ...prev, [sig.sender]: sig.payload.isHandRaised }));
+              }
             } else if (sig.type === 'end_meeting') {
               onMeetingEnded?.(meetingCode, meeting?.id);
               cleanupTracksAndConnections();
@@ -454,22 +585,30 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
   // 4. Hardware Toggles (Mic, Camera, Screen Share)
   // -------------------------------------------------------------
   const handleToggleMic = () => {
+    const nextState = !micEnabled;
+    setMicEnabled(nextState);
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !micEnabled;
-        setMicEnabled(audioTrack.enabled);
-      }
+      if (audioTrack) audioTrack.enabled = nextState;
+    }
+    if (livekitRoomRef.current?.localParticipant) {
+      livekitRoomRef.current.localParticipant.setMicrophoneEnabled(nextState);
+    }
+    if (!nextState) {
+      setIsSpeakingLocal(false);
+      setAudioLevel(0);
     }
   };
 
   const handleToggleCam = () => {
+    const nextState = !camEnabled;
+    setCamEnabled(nextState);
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !camEnabled;
-        setCamEnabled(videoTrack.enabled);
-      }
+      if (videoTrack) videoTrack.enabled = nextState;
+    }
+    if (livekitRoomRef.current?.localParticipant) {
+      livekitRoomRef.current.localParticipant.setCameraEnabled(nextState);
     }
   };
 
@@ -1064,7 +1203,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                       {meetingTitle}
                     </h3>
                     <span className="badge-academic" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                      WebRTC P2P
+                      {livekitConnected ? 'LiveKit SFU (100+)' : 'WebRTC P2P'}
                     </span>
                   </div>
                   <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
@@ -1105,18 +1244,73 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
               </div>
             </div>
 
-            {/* Video Tile Grid */}
-            <div
-              style={{
-                flex: 1,
-                padding: '16px',
-                overflowY: 'auto',
-                display: 'grid',
-                gridTemplateColumns: participants.length <= 2 ? '1fr 1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '14px',
-                alignContent: 'center',
-              }}
-            >
+            {/* Main Video Viewport with Floating Emoji Canvas */}
+            <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {/* Floating Emoji Particles Layer */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  pointerEvents: 'none',
+                  overflow: 'hidden',
+                  zIndex: 80,
+                }}
+              >
+                {floatingReactions.map((r) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      position: 'absolute',
+                      bottom: '24px',
+                      left: `${r.leftPercent}%`,
+                      fontSize: '36px',
+                      animation: `floatUpFade ${r.duration}s cubic-bezier(0.18, 0.8, 0.25, 1) forwards`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      willChange: 'transform, opacity',
+                    }}
+                  >
+                    <span>{r.emoji}</span>
+                    {r.user && (
+                      <span
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          color: '#F8FAFC',
+                          backgroundColor: 'rgba(15, 15, 24, 0.82)',
+                          backdropFilter: 'blur(4px)',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255, 255, 255, 0.12)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {r.user}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Video Tile Grid */}
+              <div
+                style={{
+                  flex: 1,
+                  padding: '16px',
+                  overflowY: 'auto',
+                  display: 'grid',
+                  gridTemplateColumns:
+                    participants.length <= 2
+                      ? '1fr 1fr'
+                      : participants.length <= 6
+                      ? 'repeat(auto-fit, minmax(280px, 1fr))'
+                      : 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '14px',
+                  alignContent: 'center',
+                }}
+              >
               {participants.map((p) => {
                 const isLocal = p.isMe;
                 const remoteStream = remoteStreams[p.name];
@@ -1224,9 +1418,15 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                           fontSize: '11px',
                           fontWeight: 600,
                           color: 'var(--text)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
                         }}
                       >
-                        {p.name} {isLocal && '(You)'}
+                        <span>{p.name} {isLocal && '(You)'}</span>
+                        {(handRaisedUsers[p.name] || (isLocal && isHandRaised)) && (
+                          <span style={{ fontSize: '13px' }} title="Hand raised">✋</span>
+                        )}
                       </span>
 
                       <div style={{ display: 'flex', gap: '4px' }}>
@@ -1263,6 +1463,7 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                   </div>
                 );
               })}
+              </div>
             </div>
 
             {/* Conference Bottom Action Bar */}
@@ -1345,6 +1546,64 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
                   {screenSharing ? 'stop_screen_share' : 'screen_share'}
                 </span>
               </button>
+
+              {/* Dedicated Raise Hand Button */}
+              <button
+                type="button"
+                onClick={handleToggleHandRaise}
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: isHandRaised ? '1.5px solid #F59E0B' : '1px solid var(--border)',
+                  backgroundColor: isHandRaised ? 'rgba(245, 158, 11, 0.22)' : '#22222A',
+                  color: isHandRaised ? '#FBBF24' : 'var(--text)',
+                  boxShadow: isHandRaised ? '0 0 16px rgba(245, 158, 11, 0.45)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title={isHandRaised ? 'Lower Hand' : 'Raise Hand (✋)'}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '21px' }}>
+                  front_hand
+                </span>
+              </button>
+
+              {/* Full Emoji Reaction Picker Toggle Button */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: showEmojiPicker ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                    backgroundColor: showEmojiPicker ? 'rgba(229, 169, 60, 0.2)' : '#22222A',
+                    color: showEmojiPicker ? 'var(--primary)' : 'var(--text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title="React with Emoji"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '21px' }}>
+                    mood
+                  </span>
+                </button>
+
+                {/* Expansive Emoji Reaction Picker Popover */}
+                <EmojiReactionPicker
+                  isOpen={showEmojiPicker}
+                  onClose={() => setShowEmojiPicker(false)}
+                  onSelectEmoji={handleSelectEmoji}
+                />
+              </div>
 
               {isHost ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1557,6 +1816,27 @@ export function SeminarCallModal({ group, meeting, onClose, onMeetingEnded, init
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes floatUpFade {
+          0% {
+            transform: translateY(0) scale(0.5);
+            opacity: 0;
+          }
+          15% {
+            transform: translateY(-25px) scale(1.18);
+            opacity: 1;
+          }
+          80% {
+            transform: translateY(-240px) scale(1.02);
+            opacity: 0.92;
+          }
+          100% {
+            transform: translateY(-340px) scale(0.85);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
 
   );

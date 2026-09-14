@@ -12,3 +12,4 @@ whitenoise
 gunicorn
 django-storages
 boto3
+livekit-api

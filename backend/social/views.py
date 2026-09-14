@@ -579,3 +579,63 @@ class CallViewSet(viewsets.ModelViewSet):
         call = self.get_object()
         _sync_call_ended(call, request.user)
         return Response(CallSerializer(call).data)
+
+    @action(detail=True, methods=['get'], url_path='token')
+    def token(self, request, pk=None):
+        call = self.get_object()
+        if call.status == Call.STATUS_ENDED:
+            return Response({'detail': 'Call has already ended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from decouple import config
+        livekit_url = config('LIVEKIT_URL', default=None)
+        api_key = config('LIVEKIT_API_KEY', default=None)
+        api_secret = config('LIVEKIT_API_SECRET', default=None)
+
+        if not livekit_url or not api_key or not api_secret:
+            return Response({
+                'fallback_mode': True,
+                'message': 'LiveKit SFU not configured. Operating in WebRTC P2P fallback mode.'
+            })
+
+        try:
+            from livekit import api
+            user = request.user
+            is_host = bool(
+                call.initiator_id == user.id or
+                (call.group and (call.group.created_by_id == user.id or call.group.memberships.filter(user=user, role='admin').exists())) or
+                user.is_staff
+            )
+
+            token = api.AccessToken(api_key, api_secret) \
+                .with_identity(user.username) \
+                .with_name(user.get_full_name() or user.username) \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room=call.meeting_code or f"call-{call.id}",
+                    can_publish=True,
+                    can_subscribe=True,
+                    can_publish_data=True,
+                    room_admin=is_host,
+                ))
+
+            call.participants.add(user)
+            if call.status == Call.STATUS_PENDING:
+                from django.utils import timezone
+                call.status = Call.STATUS_ACTIVE
+                if not call.started_at:
+                    call.started_at = timezone.now()
+                call.save()
+
+            return Response({
+                'token': token.to_jwt(),
+                'server_url': livekit_url,
+                'room_name': call.meeting_code or f"call-{call.id}",
+                'fallback_mode': False,
+                'is_host': is_host,
+            })
+        except Exception as e:
+            return Response({
+                'fallback_mode': True,
+                'error': str(e),
+                'message': 'Error initializing LiveKit token. Reverting to WebRTC P2P fallback mode.'
+            })
