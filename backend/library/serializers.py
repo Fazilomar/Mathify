@@ -39,6 +39,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
     def get_uploaded_by(self, obj):
         return _safe_user_name(obj.uploaded_by)
+    level_display = serializers.CharField(source='get_level_display', read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     bookmark_count = serializers.ReadOnlyField()
     is_bookmarked = serializers.SerializerMethodField()
@@ -48,11 +49,12 @@ class ResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resource
         fields = [
-            'id', 'title', 'description', 'resource_type', 'file', 'url',
+            'id', 'title', 'description', 'resource_type', 'level', 'level_display',
+            'file', 'file_size_bytes', 'url',
             'category', 'category_id', 'tags', 'uploaded_by',
             'bookmark_count', 'is_bookmarked', 'created_at',
         ]
-        read_only_fields = ['id', 'uploaded_by', 'created_at']
+        read_only_fields = ['id', 'uploaded_by', 'created_at', 'level_display', 'file_size_bytes']
 
     def get_is_bookmarked(self, obj):
         request = self.context.get('request')
