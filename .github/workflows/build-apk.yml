@@ -42,6 +42,8 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: |
+          export PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/cmdline-tools/16.0/bin:${ANDROID_HOME}/tools/bin:${PATH}"
+          command -v sdkmanager
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
