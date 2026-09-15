@@ -41,11 +41,29 @@ class Resource(models.Model):
         (TYPE_TEXTBOOK, 'Textbook'),
     ]
 
+    LEVEL_100 = '100'
+    LEVEL_200 = '200'
+    LEVEL_300 = '300'
+    LEVEL_400 = '400'
+    LEVEL_500 = '500'
+    LEVEL_GENERAL = 'general'
+    LEVEL_CHOICES = [
+        (LEVEL_100, '100 Level'),
+        (LEVEL_200, '200 Level'),
+        (LEVEL_300, '300 Level'),
+        (LEVEL_400, '400 Level'),
+        (LEVEL_500, '500 Level'),
+        (LEVEL_GENERAL, 'General Reference'),
+    ]
+
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
     resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default=LEVEL_GENERAL, db_index=True)
     file = models.FileField(upload_to='library/', blank=True, null=True)
+    file_size_bytes = models.BigIntegerField(null=True, blank=True)
     url = models.URLField(blank=True)
+    telegram_message_id = models.BigIntegerField(null=True, blank=True, unique=True)
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='resources'

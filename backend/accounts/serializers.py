@@ -1,19 +1,58 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, Profile, Department
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from mathify.media_fields import HybridImageField
 
 
-class MathifyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Accept the UI's username-or-email field while JWT uses email internally."""
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """
+    Accepts either 'username', 'email', or both in the request payload,
+    allowing users to sign in seamlessly via their username or email address.
+    """
+    username = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.CharField(required=False, allow_blank=True)
 
-    def to_internal_value(self, data):
-        data = data.copy()
-        identifier = data.get('username') or data.get('email')
-        if identifier:
-            user = CustomUser.objects.filter(username__iexact=identifier).only('email').first()
-            data['email'] = user.email if user else identifier
-        return super().to_internal_value(data)
+    def validate(self, attrs):
+        login_identifier = (
+            attrs.get('username') or
+            attrs.get('email') or
+            attrs.get(self.username_field) or
+            ''
+        ).strip()
+        password = attrs.get('password', '')
+
+        if not login_identifier:
+            raise serializers.ValidationError({
+                'detail': 'Please enter your username or email address.'
+            })
+
+        if not password:
+            raise serializers.ValidationError({
+                'detail': 'Please enter your password.'
+            })
+
+        request = self.context.get('request')
+        user = authenticate(request=request, username=login_identifier, password=password)
+
+        if not user:
+            raise serializers.ValidationError({
+                'detail': 'No active account found with the given credentials.'
+            })
+
+        if not user.is_active:
+            raise serializers.ValidationError({
+                'detail': 'This account has been deactivated.'
+            })
+
+        self.user = user
+        refresh = self.get_token(user)
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -23,6 +62,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    avatar = HybridImageField(required=False, allow_null=True)
     department = DepartmentSerializer(read_only=True)
     department_id = serializers.PrimaryKeyRelatedField(
         queryset=Department.objects.all(), source='department',
@@ -47,11 +87,22 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    """Full user profile including private email — strictly for the authenticated user's own profile (/me/)."""
     profile = ProfileSerializer(read_only=True)
 
     class Meta:
         model = CustomUser
         fields = ['id', 'email', 'username', 'first_name', 'last_name', 'profile']
+        read_only_fields = ['id']
+
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    """Safe public serializer that protects the user's private email address from scrapers."""
+    profile = ProfileSerializer(read_only=True)
+
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'username', 'first_name', 'last_name', 'profile']
         read_only_fields = ['id']
 
 

@@ -77,7 +77,7 @@ export function LandingPage() {
   ];
 
   return (
-    <div style={{ maxWidth: '980px', margin: '0 auto', width: '100%', padding: '0 20px 80px' }}>
+    <div className="landing-shell" style={{ maxWidth: '980px', margin: '0 auto', width: '100%', padding: '0 20px 80px' }}>
       {/* Hero Section */}
       <section style={{ textAlign: 'center', padding: '56px 0 44px' }}>
         <div
@@ -113,7 +113,7 @@ export function LandingPage() {
             lineHeight: 1.6,
           }}
         >
-          Mathify provides a dedicated academic workspace for authoring LaTeX proofs, 
+          Mathify provides a dedicated academic workspace for authoring LaTeX proofs,
           discussing mathematical conjectures, and receiving guided assistance from an AI math tutor.
         </p>
 

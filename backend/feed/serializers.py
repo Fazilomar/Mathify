@@ -1,15 +1,33 @@
 from rest_framework import serializers
 from .models import Post, Like, Comment, Follow
+from mathify.media_fields import HybridFileField
+
+
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
 
 
 class CommentSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
         fields = ['id', 'user', 'content', 'parent', 'replies', 'created_at']
         read_only_fields = ['id', 'user', 'created_at']
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
 
     def get_replies(self, obj):
         if obj.replies.exists():
@@ -18,19 +36,31 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class PostSerializer(serializers.ModelSerializer):
-    author = serializers.StringRelatedField(read_only=True)
+    author = serializers.SerializerMethodField()
     author_id = serializers.ReadOnlyField(source='author.id')
-    author_username = serializers.ReadOnlyField(source='author.username')
+    author_username = serializers.SerializerMethodField()
     author_avatar = serializers.SerializerMethodField()
     likes_count = serializers.ReadOnlyField()
     comments_count = serializers.ReadOnlyField()
     is_liked = serializers.SerializerMethodField()
+    media = HybridFileField(required=False, allow_null=True, max_upload_size_mb=50)
+
+    def get_author(self, obj):
+        return _safe_user_name(obj.author)
+
+    def get_author_username(self, obj):
+        return _safe_user_name(obj.author)
 
     MAX_CONTENT_LENGTH = 4000
     MAX_LATEX_LENGTH = 8000
-    MAX_MEDIA_BYTES = 10 * 1024 * 1024
-    IMAGE_TYPES = {'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'}
-    VIDEO_TYPES = {'video/mp4', 'video/webm', 'video/ogg'}
+    MAX_MEDIA_BYTES = 50 * 1024 * 1024
+    IMAGE_TYPES = {
+        'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp',
+        'image/heic', 'image/heif', 'image/svg+xml', 'image/bmp', 'application/octet-stream',
+    }
+    IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.heif', '.svg', '.bmp')
+    VIDEO_TYPES = {'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'}
+    VIDEO_EXTENSIONS = ('.mp4', '.mov', '.webm', '.ogg', '.m4v', '.3gp')
 
     class Meta:
         model = Post
@@ -42,10 +72,27 @@ class PostSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'author', 'author_id', 'author_username', 'author_avatar', 'created_at', 'updated_at']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.media:
+            try:
+                request = self.context.get('request')
+                if request:
+                    data['media'] = request.build_absolute_uri(instance.media.url)
+                else:
+                    data['media'] = instance.media.url
+            except Exception:
+                pass
+        return data
+
     def get_author_avatar(self, obj):
         try:
             if hasattr(obj.author, 'profile') and obj.author.profile.avatar:
-                return obj.author.profile.avatar.url
+                request = self.context.get('request')
+                url = obj.author.profile.avatar.url
+                if request:
+                    return request.build_absolute_uri(url)
+                return url
         except Exception:
             pass
         return None
@@ -82,26 +129,29 @@ class PostSerializer(serializers.ModelSerializer):
 
         if media is not None:
             if media.size > self.MAX_MEDIA_BYTES:
-                raise serializers.ValidationError({'media': 'Media file is too large.'})
+                raise serializers.ValidationError({'media': 'Media file is too large (max 50MB).'})
 
-            content_type = getattr(media, 'content_type', '')
+            content_type = getattr(media, 'content_type', '').lower()
             media_name = getattr(media, 'name', '').lower()
 
-            # Auto-infer post_type if not explicitly set to image/video or left as default text
-            if 'post_type' not in attrs or post_type == Post.TYPE_TEXT:
-                if content_type in self.IMAGE_TYPES or media_name.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-                    post_type = Post.TYPE_IMAGE
-                    attrs['post_type'] = Post.TYPE_IMAGE
-                elif content_type in self.VIDEO_TYPES or media_name.endswith(('.mp4', '.mov', '.webm')):
-                    post_type = Post.TYPE_VIDEO
-                    attrs['post_type'] = Post.TYPE_VIDEO
+            is_video = (
+                content_type in self.VIDEO_TYPES or
+                content_type.startswith('video/') or
+                media_name.endswith(self.VIDEO_EXTENSIONS)
+            )
 
-            if post_type == Post.TYPE_IMAGE and content_type not in self.IMAGE_TYPES and not media_name.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-                raise serializers.ValidationError({'media': 'Invalid image type.'})
-            if post_type == Post.TYPE_VIDEO and content_type not in self.VIDEO_TYPES and not media_name.endswith(('.mp4', '.mov', '.webm')):
-                raise serializers.ValidationError({'media': 'Invalid video type.'})
-            if post_type in {Post.TYPE_TEXT, Post.TYPE_FORMULA}:
-                raise serializers.ValidationError({'media': 'Media not allowed for this post type.'})
+            is_image = (
+                content_type in self.IMAGE_TYPES or
+                content_type.startswith('image/') or
+                media_name.endswith(self.IMAGE_EXTENSIONS)
+            )
+
+            if is_video:
+                attrs['post_type'] = Post.TYPE_VIDEO
+            elif is_image:
+                attrs['post_type'] = Post.TYPE_IMAGE
+            else:
+                attrs['post_type'] = Post.TYPE_IMAGE
 
         return attrs
 

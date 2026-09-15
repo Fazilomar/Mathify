@@ -38,6 +38,27 @@ cp .env.example .env
 # then edit .env and set a real SECRET_KEY
 ```
 
+### Google sign-in
+
+Create an OAuth 2.0 **Web application** client in Google Cloud Console and add
+this authorized redirect URI for local development:
+
+```text
+http://127.0.0.1:8000/api/accounts/oauth/google/callback/
+```
+
+Then set these values in `backend/.env`:
+
+```text
+GOOGLE_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+OAUTH_REDIRECT_BASE_URL=http://127.0.0.1:8000/api/accounts/oauth/google/callback/
+FRONTEND_URL=http://localhost:5173
+```
+
+The OAuth consent screen must include the Google account used for testing when
+the app is in testing mode.
+
 ---
 
 ## 4. Run migrations

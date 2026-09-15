@@ -13,19 +13,22 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 import urllib.request
 import urllib.parse
 import json
+from django.conf import settings
 from decouple import config
 import secrets
 
+from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import CustomUser, Profile, Department
 from .serializers import (
-    UserSerializer, RegisterSerializer,
+    UserSerializer, PublicUserSerializer, RegisterSerializer,
     ProfileSerializer, DepartmentSerializer,
-    MathifyTokenObtainPairSerializer,
+    EmailOrUsernameTokenObtainPairSerializer,
 )
 
 
-class MathifyTokenObtainPairView(TokenObtainPairView):
-    serializer_class = MathifyTokenObtainPairSerializer
+class EmailOrUsernameTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmailOrUsernameTokenObtainPairSerializer
+    throttle_scope = 'auth'
 
 
 class RegisterView(generics.CreateAPIView):
@@ -51,14 +54,15 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 
 class UserDetailView(generics.RetrieveAPIView):
-    """Public profile lookup by user ID."""
-    serializer_class = UserSerializer
+    """Public profile lookup by user ID — uses PublicUserSerializer to protect private user emails."""
+    serializer_class = PublicUserSerializer
     queryset = CustomUser.objects.select_related('profile__department')
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
 class UserListView(generics.ListAPIView):
-    serializer_class = UserSerializer
+    """Member directory lookup — uses PublicUserSerializer to prevent email enumeration."""
+    serializer_class = PublicUserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
@@ -80,26 +84,69 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
 
+def is_allowed_origin(url):
+    """Dynamically validates that a candidate redirect origin matches configured CORS or FRONTEND_URL."""
+    if not url:
+        return False
+    try:
+        import re
+        parsed = urllib.parse.urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return False
+        origin = f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
+
+        configured = config('FRONTEND_URL', default='').strip().rstrip('/')
+        if configured and origin == configured:
+            return True
+
+        cors_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+        if origin in cors_origins:
+            return True
+        cors_regexes = getattr(settings, 'CORS_ALLOWED_ORIGIN_REGEXES', [])
+        for pattern in cors_regexes:
+            if re.match(pattern, origin):
+                return True
+
+        if getattr(settings, 'DEBUG', False):
+            if parsed.hostname in ('localhost', '127.0.0.1'):
+                return True
+
+        return False
+    except Exception:
+        return False
+
+
 def get_frontend_url(request, state_frontend=None):
-    if state_frontend:
+    """
+    Safely resolves the frontend URL without allowing open redirects.
+    Candidate URLs from state or query parameters MUST match trusted origins.
+    """
+    if state_frontend and is_allowed_origin(state_frontend):
         return state_frontend.rstrip('/')
+
     req_param = request.GET.get('frontend_redirect', '').strip()
-    if req_param:
+    if req_param and is_allowed_origin(req_param):
         return req_param.rstrip('/')
     header_origin = request.headers.get('origin') or request.headers.get('referer')
     if header_origin:
         try:
             parsed = urllib.parse.urlparse(header_origin)
-            return f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
+            origin = f"{parsed.scheme}://{parsed.netloc}".rstrip('/')
+            if is_allowed_origin(origin):
+                return origin
         except Exception:
             pass
+
     configured = config('FRONTEND_URL', default='').strip().rstrip('/')
     if configured:
         return configured
+
+    cors_origins = getattr(settings, 'CORS_ALLOWED_ORIGINS', [])
+    if cors_origins:
+        return cors_origins[0].rstrip('/')
+
     return ''
 
-
-# OAuth 2.0 Identity Provider Views
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -211,14 +258,6 @@ class GoogleCallbackView(APIView):
 
         first_name = profile_data.get('given_name', '')
         last_name = profile_data.get('family_name', '')
-
-        # Proactively ensure the role column exists on accounts_profile
-        try:
-            from django.db import connection
-            with connection.cursor() as cursor:
-                cursor.execute("ALTER TABLE accounts_profile ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'student';")
-        except Exception:
-            pass
 
         # Get or create CustomUser
         user = CustomUser.objects.filter(email=email).first()
@@ -366,14 +405,6 @@ class MicrosoftCallbackView(APIView):
                 first_name = parts[0]
                 last_name = parts[1] if len(parts) > 1 else ''
 
-        # Proactively ensure the role column exists on accounts_profile
-        try:
-            from django.db import connection
-            with connection.cursor() as cursor:
-                cursor.execute("ALTER TABLE accounts_profile ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'student';")
-        except Exception:
-            pass
-
         # create CustomUser
         user = CustomUser.objects.filter(email=email).first()
         if not user:
@@ -416,9 +447,12 @@ class PasswordResetRequestView(APIView):
             # Generate token and uid
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            
-            # Construct reset link
-            reset_url = request.build_absolute_uri(f'/login/?reset=true&uid={uid}&token={token}')
+                      # Construct reset link pointing to the user's frontend client
+            frontend_url = get_frontend_url(request)
+            if frontend_url:
+                reset_url = f"{frontend_url}/login?reset=true&uid={uid}&token={token}"
+            else:
+                reset_url = request.build_absolute_uri(f'/login/?reset=true&uid={uid}&token={token}')
             
             # Send email
             subject = "Mathify Password Reset Request"
@@ -429,7 +463,6 @@ class PasswordResetRequestView(APIView):
                 f"{reset_url}\n\n"
                 f"If you did not request this, please ignore this email.\n"
             )
-            from django.conf import settings
             try:
                 send_mail(
                     subject,
@@ -449,6 +482,9 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
         uidb64 = request.data.get('uid')
         token = request.data.get('token')
         new_password = request.data.get('password')
@@ -464,6 +500,12 @@ class PasswordResetConfirmView(APIView):
             
         if not default_token_generator.check_token(user, token):
             return Response({'error': 'Reset token is invalid or has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Enforce academic-grade password complexity via Django's configured validators
+        try:
+            validate_password(new_password, user=user)
+        except ValidationError as e:
+            return Response({'error': ' '.join(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
             
         # Set new password
         user.set_password(new_password)

@@ -9,22 +9,38 @@ export function AITutorPage() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const starterPrompts = [
-    { title: "Euler's Identity", prompt: "Explain Euler's identity e^{iπ} + 1 = 0 and its geometric meaning on the unit circle." },
-    { title: "Cauchy-Schwarz Inequality", prompt: "How does the Cauchy-Schwarz inequality apply to inner product spaces and L² functions?" },
-    { title: "Fourier Transform Derivation", prompt: "Derive the continuous Fourier Transform from the Fourier Series step-by-step with LaTeX." },
-    { title: "Irrationality of √2", prompt: "Provide a rigorous step-by-step proof by contradiction that the square root of 2 is irrational." },
-    { title: "Stokes' Generalized Theorem", prompt: "Explain Stokes' theorem on differential forms and how it generalizes Green and Gauss theorems." },
-    { title: "Sylow Theorems", prompt: "State and explain the intuition behind Sylow's first theorem in group theory with an example." },
+    { title: "Quadratic Equations", prompt: "Explain how to solve ax² + bx + c = 0 using the quadratic formula with an easy step-by-step example." },
+    { title: "Pythagorean Theorem", prompt: "Explain why a² + b² = c² works for right triangles with an intuitive explanation." },
+    { title: "Adding Fractions", prompt: "Show me how to add 2/3 + 4/5 step-by-step with common denominators." },
+    { title: "Intro to Derivatives", prompt: "Explain what a derivative is in simple terms and how to find the derivative of x²." },
+    { title: "Why √2 is Irrational", prompt: "Can you explain the simple proof that the square root of 2 is irrational so anyone can understand it?" },
+    { title: "Word Problems into Equations", prompt: "How do I turn an algebra word problem into an equation? Walk me through a clear example." },
   ];
 
-  const quickSymbols = ['\\forall', '\\exists', '\\in', '\\implies', '\\sum', '\\int', '\\mathbb{R}', '\\mathbb{C}'];
+  const quickSymbols = [
+    { label: '∀', code: '\\forall ' },
+    { label: '∃', code: '\\exists ' },
+    { label: '∈', code: '\\in ' },
+    { label: '∉', code: '\\notin ' },
+    { label: '⟹', code: '\\implies ' },
+    { label: '⟺', code: '\\iff ' },
+    { label: '∑', code: '\\sum ' },
+    { label: '∫', code: '\\int ' },
+    { label: 'ℝ', code: '\\mathbb{R}' },
+    { label: 'ℂ', code: '\\mathbb{C}' },
+    { label: 'ℤ', code: '\\mathbb{Z}' },
+    { label: 'ℕ', code: '\\mathbb{N}' },
+    { label: 'π', code: '\\pi ' },
+    { label: '∞', code: '\\infty ' },
+    { label: '√', code: '\\sqrt{} ' },
+  ];
 
   const fetchSessions = async () => {
     try {
@@ -80,50 +96,83 @@ export function AITutorPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, sending]);
 
-  const fileToBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  const handleAttachmentChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
 
-  const ensureActiveSession = async (text) => {
-    if (activeSessionId) return activeSessionId;
-    const res = await API.post('/api/ai-tutor/sessions/', {
-      title: text.slice(0, 35) || 'Research Session',
-    });
-    if (!res.ok) throw new Error('Could not start an AI Tutor session.');
-    const session = await res.json();
-    setSessions((prev) => [session, ...prev]);
-    setActiveSessionId(session.id);
-    return session.id;
+    // Supported Gemini inlineData types
+    const validBinaryTypes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'
+    ];
+    const isTextFile = /\.(txt|csv|py|tex|json|md)$/i.test(file.name) || file.type.startsWith('text/');
+
+    // For plain text / code files, read directly as text and append to composer
+    if (isTextFile) {
+      if (file.size > 1024 * 1024) {
+        window.alert('Please choose a text document smaller than 1 MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const fileContent = String(reader.result || '');
+        setInputMessage((prev) =>
+          prev
+            ? `${prev}\n\n[File: ${file.name}]\n\`\`\`\n${fileContent}\n\`\`\``
+            : `[File: ${file.name}]\n\`\`\`\n${fileContent}\n\`\`\`\n`
+        );
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    // Binary file: image or PDF
+    const mime = file.type || '';
+    const isPdf = /\.pdf$/i.test(file.name);
+    const resolvedMime = isPdf ? 'application/pdf' : mime;
+
+    if (!validBinaryTypes.includes(resolvedMime)) {
+      window.alert('Supported file formats for mathematical AI analysis are PNG, JPEG, WEBP, PDF, and code/text files (.txt, .tex, .py, .csv).');
+      return;
+    }
+
+    // Strictly limit binary files to 3.5 MB so Base64 payloads remain within Vercel's 4.5 MB ceiling
+    if (file.size > 3.5 * 1024 * 1024) {
+      window.alert('Please choose a file smaller than 3.5 MB for the AI reasoning engine.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedAttachment({
+        name: file.name,
+        mime: resolvedMime,
+        data: String(reader.result).split(',')[1] || '',
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendMessage = async (msgText = inputMessage) => {
     const text = typeof msgText === 'string' ? msgText.trim() : inputMessage.trim();
-    if ((!text && !selectedFile) || sending) return;
+    if ((!text && !selectedAttachment) || sending) return;
 
-    const file = selectedFile;
-    const displayText = text || `Please analyze the attached file: ${file.name}`;
-    let sessionId;
-    try {
-      sessionId = await ensureActiveSession(displayText);
-    } catch (err) {
-      setMessages((prev) => [...prev, { id: Date.now(), role: 'assistant', content: `⚠️ ${err.message}` }]);
-      return;
-    }
+    const attachment = selectedAttachment;
+    const messageText = text || `Please analyze the attached file: ${attachment.name}`;
 
     setInputMessage('');
-    setSelectedFile(null);
+    setSelectedAttachment(null);
     const userMsg = {
       id: Date.now(),
       role: 'user',
-      content: displayText,
-      file_name: file?.name,
-      file_mime: file?.type,
+      content: messageText,
+      file_name: attachment?.name,
+      file_mime: attachment?.mime,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
@@ -153,7 +202,14 @@ export function AITutorPage() {
       };
       const res = await API.req(`/api/ai-tutor/sessions/${sessionId}/send-stream/`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          message: messageText,
+          session_id: activeSessionId,
+          stream: true,
+          file_data: attachment?.data || '',
+          file_name: attachment?.name || '',
+          file_mime: attachment?.mime || '',
+        }),
         headers: {
           'Accept': 'text/event-stream',
         },
@@ -210,10 +266,10 @@ export function AITutorPage() {
           prev.map((m) =>
             m.id === assistantMsgId
               ? {
-                  ...m,
-                  content: `⚠️ Error: ${errorData.error || errorData.detail || 'Could not reach AI Tutor. Please try again.'}`,
-                  isStreaming: false,
-                }
+                ...m,
+                content: `⚠️ Error: ${errorData.error || errorData.detail || 'Could not reach AI Tutor. Please try again.'}`,
+                isStreaming: false,
+              }
               : m
           )
         );
@@ -223,10 +279,10 @@ export function AITutorPage() {
         prev.map((m) =>
           m.id === assistantMsgId
             ? {
-                ...m,
-                content: '⚠️ Network connection failed. Please verify your connection.',
-                isStreaming: false,
-              }
+              ...m,
+              content: '⚠️ Network connection failed. Please verify your connection.',
+              isStreaming: false,
+            }
             : m
         )
       );
@@ -248,9 +304,17 @@ export function AITutorPage() {
           backgroundColor: '#16161B',
         }}
       >
+        {/* Backdrop for mobile drawer */}
+        {sidebarOpen && (
+          <div
+            className="ai-tutor-sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Sessions Sidebar */}
         <aside
-          className="ai-tutor-sidebar"
+          className={`ai-tutor-sidebar ${sidebarOpen ? 'open' : ''}`}
           style={{
             width: '280px',
             borderRight: '1px solid var(--border)',
@@ -280,14 +344,32 @@ export function AITutorPage() {
                 {sessions.length} recorded
               </span>
             </div>
-            <button
-              onClick={createNewSession}
-              className="btn-primary"
-              style={{ padding: '5px 11px', fontSize: '12px', borderRadius: '6px' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-              New
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={createNewSession}
+                className="btn-primary"
+                style={{ padding: '5px 11px', fontSize: '12px', borderRadius: '6px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+                New
+              </button>
+              <button
+                type="button"
+                className="ai-tutor-sidebar-close"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close sessions"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-subtle)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'none',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
           </div>
 
           {/* Sessions List or Sample Discussions */}
@@ -373,8 +455,23 @@ export function AITutorPage() {
               backgroundColor: '#16161B',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+              <button
+                type="button"
+                className="ai-tutor-sidebar-toggle"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                title="Past chats"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>history</span>
+                <span className="desktop-only-text">Sessions</span>
+                {sessions.length > 0 && (
+                  <span className="ai-tutor-session-pill">
+                    {sessions.length}
+                  </span>
+                )}
+              </button>
               <div
+                className="ai-tutor-header-icon"
                 style={{
                   width: '32px',
                   height: '32px',
@@ -385,81 +482,95 @@ export function AITutorPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>smart_toy</span>
               </div>
-              <div>
-                <h2 style={{ fontSize: '14.5px', margin: 0, fontWeight: 700, color: 'var(--text)' }}>
-                  Mathify AI Theorem Research Mentor
+              <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                <h2 style={{ fontSize: '14.5px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  AI Math Tutor
                 </h2>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                  Gemini Flash Mathematical Reasoning Engine
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', flexShrink: 0 }} />
+                  <span>Ready to help</span>
                 </div>
               </div>
             </div>
 
-            <span className="badge-academic" style={{ fontSize: '11px', padding: '2px 8px' }}>
-              LaTeX Enabled
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={createNewSession}
+                className="btn-secondary"
+                style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="New Chat Session"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
+                <span className="desktop-only-text">New</span>
+              </button>
+              <span className="badge-academic ai-tutor-latex-badge" style={{ fontSize: '11px', padding: '2px 8px' }}>
+                LaTeX
+              </span>
+            </div>
           </header>
 
           {/* Messages Stream */}
           <div className="ai-tutor-messages" style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {messages.length === 0 ? (
-              <div style={{ margin: 'auto', maxWidth: '640px', textAlign: 'center', width: '100%' }}>
+              <div className="ai-tutor-empty-state" style={{ margin: 'auto', maxWidth: '640px', textAlign: 'center', width: '100%', padding: '16px 8px' }}>
                 <div
+                  className="ai-tutor-empty-icon"
                   style={{
-                    width: '52px',
-                    height: '52px',
+                    width: '48px',
+                    height: '48px',
                     borderRadius: '12px',
                     backgroundColor: 'var(--primary-subtle)',
                     border: '1px solid var(--primary-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    margin: '0 auto 16px',
+                    margin: '0 auto 12px',
                     color: 'var(--primary)',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>history_edu</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>history_edu</span>
                 </div>
-                <h3 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px', color: 'var(--text)' }}>
-                  How can I assist your mathematical research?
+                <h3 className="ai-tutor-empty-title" style={{ fontSize: '20px', fontWeight: 700, marginBottom: '6px', color: 'var(--text)' }}>
+                  What math problem can I help you with today?
                 </h3>
-                <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.55 }}>
-                  Ask for LaTeX derivations, topological decompositions, Olympiad step-by-step solutions, or lemma verifications.
+                <p className="ai-tutor-empty-desc" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
+                  Ask any math question! You can paste homework problems, ask for step-by-step explanations, or pick a topic below.
                 </p>
 
-                {/* Responsive 2-column Starter Grid */}
-                <div className="ai-tutor-prompts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px', textAlign: 'left' }}>
+                {/* Responsive Starter Grid */}
+                <div className="ai-tutor-prompts" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px', textAlign: 'left' }}>
                   {starterPrompts.map((p) => (
                     <button
                       key={p.title}
                       onClick={() => handleSendMessage(p.prompt)}
-                      className="card"
+                      className="card ai-tutor-prompt-card"
                       style={{
-                        padding: '14px 16px',
+                        padding: '12px 14px',
                         backgroundColor: '#141418',
                         cursor: 'pointer',
                         textAlign: 'left',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        gap: '6px',
+                        gap: '4px',
                         transition: 'border-color 0.15s ease',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--primary)' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--primary)' }}>
                           {p.title}
                         </span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--text-subtle)' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--text-subtle)' }}>
                           arrow_forward
                         </span>
                       </div>
-                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
                         {p.prompt}
                       </span>
                     </button>
@@ -492,14 +603,20 @@ export function AITutorPage() {
                       }}
                     >
                       <div style={{ fontSize: '11px', fontWeight: 600, color: isUser ? 'var(--primary)' : 'var(--text-subtle)', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{isUser ? (user?.username || 'You') : 'Mathify AI Mentor'}</span>
+                        <span>{isUser ? (user?.username || 'You') : 'Mathify AI Tutor'}</span>
                         {m.isStreaming && (
                           <span style={{ fontSize: '10.5px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                            Live derivation...
+                            Thinking & solving...
                           </span>
                         )}
                       </div>
+                      {m.file_name && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', padding: '3px 8px', borderRadius: '6px', backgroundColor: 'rgba(255, 255, 255, 0.06)', border: '1px solid var(--border)', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '13px', color: 'var(--primary)' }}>attach_file</span>
+                          <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.file_name}</span>
+                        </div>
+                      )}
                       {m.content ? (
                         <div style={{ position: 'relative' }}>
                                   {m.file_name && (
@@ -542,28 +659,29 @@ export function AITutorPage() {
           {/* Chat Input & Toolbar */}
           <div className="ai-tutor-composer" style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', backgroundColor: '#16161B' }}>
             {/* Quick Math Symbols */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px', whiteSpace: 'nowrap' }}>
                 Insert Symbol:
               </span>
-              {quickSymbols.map((sym) => (
+              {quickSymbols.map((s) => (
                 <button
-                  key={sym}
+                  key={s.label}
                   type="button"
-                  onClick={() => setInputMessage((prev) => prev + ` $${sym}$ `)}
+                  onClick={() => setInputMessage((prev) => prev ? `${prev} $${s.code}$ ` : `$${s.code}$ `)}
                   className="symbol-chip"
-                  style={{ fontSize: '11.5px', padding: '2px 7px' }}
+                  title={`Insert LaTeX: ${s.code}`}
+                  style={{ fontSize: '12.5px', padding: '3px 8px', fontWeight: 600, flexShrink: 0 }}
                 >
-                  ${sym}$
+                  {s.label}
                 </button>
               ))}
             </div>
 
-            {selectedFile && (
-              <div className="ai-tutor-selected-file">
+            {selectedAttachment && (
+              <div className="ai-tutor-attachment" role="status">
                 <span className="material-symbols-outlined">attach_file</span>
-                <span title={selectedFile.name}>{selectedFile.name}</span>
-                <button type="button" onClick={() => setSelectedFile(null)} aria-label="Remove attached file">×</button>
+                <span>{selectedAttachment.name}</span>
+                <button type="button" onClick={() => setSelectedAttachment(null)} aria-label="Remove attachment">close</button>
               </div>
             )}
 
@@ -575,17 +693,15 @@ export function AITutorPage() {
               className="ai-tutor-input-row"
               style={{ display: 'flex', gap: '10px' }}
             >
-              <input ref={fileInputRef} type="file" accept="image/*,video/*,application/pdf,text/plain" hidden onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
-              <button
-                type="button"
-                className="ai-tutor-attach-button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                aria-label="Attach an image, video, PDF, or text file"
-                title="Attach file"
-              >
-                <span className="material-symbols-outlined">attach_file</span>
-              </button>
+              <label className="ai-tutor-attach-button" title="Attach a diagram, PDF, or code">
+                <span className="material-symbols-outlined">add</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,application/pdf,.txt,.csv,.py,.tex"
+                  onChange={handleAttachmentChange}
+                  hidden
+                />
+              </label>
               <input
                 type="text"
                 className="glass-input"
@@ -597,9 +713,8 @@ export function AITutorPage() {
               />
               <button
                 type="submit"
-                disabled={sending || (!inputMessage.trim() && !selectedFile)}
-                className="btn-primary"
-                style={{ padding: '10px 14px', fontSize: '13.5px' }}
+                disabled={sending || (!inputMessage.trim() && !selectedAttachment)}
+                className="btn-primary ai-tutor-send-button"
                 aria-label="Send message"
                 title="Send message"
               >

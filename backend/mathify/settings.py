@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'storages',
 
     # local
     'accounts',
@@ -79,11 +80,37 @@ WSGI_APPLICATION = 'mathify.wsgi.application'
 DATABASE_URL = config('DATABASE_URL', default=None)
 USE_POSTGRES = config('USE_POSTGRES', default=bool(DATABASE_URL), cast=bool)
 
-if DATABASE_URL:
+def parse_database_url(url, conn_max_age=600, ssl_require=True):
     try:
         import dj_database_url
+        return dj_database_url.parse(url, conn_max_age=conn_max_age, ssl_require=ssl_require)
+    except ImportError:
+        import urllib.parse
+        parsed = urllib.parse.urlparse(url)
+        engine_map = {
+            'postgres': 'django.db.backends.postgresql',
+            'postgresql': 'django.db.backends.postgresql',
+            'sqlite': 'django.db.backends.sqlite3',
+            'mysql': 'django.db.backends.mysql',
+        }
+        engine = engine_map.get(parsed.scheme, 'django.db.backends.postgresql')
+        db_config = {
+            'ENGINE': engine,
+            'NAME': urllib.parse.unquote(parsed.path.lstrip('/')),
+            'USER': urllib.parse.unquote(parsed.username or ''),
+            'PASSWORD': urllib.parse.unquote(parsed.password or ''),
+            'HOST': parsed.hostname or '',
+            'PORT': parsed.port or '',
+            'CONN_MAX_AGE': conn_max_age,
+        }
+        if ssl_require and 'postgresql' in engine:
+            db_config['OPTIONS'] = {'sslmode': 'require'}
+        return db_config
+
+if DATABASE_URL:
+    try:
         DATABASES = {
-            'default': dj_database_url.parse(
+            'default': parse_database_url(
                 DATABASE_URL,
                 conn_max_age=config('DB_CONN_MAX_AGE', default=(0 if IS_VERCEL else 600), cast=int),
                 ssl_require=config('DB_SSL_REQUIRE', default=True, cast=bool)
@@ -100,6 +127,8 @@ if DATABASE_URL:
             }
         }
 else:
+    if IS_VERCEL:
+        print("[CRITICAL PRODUCTION WARNING] Running on Vercel without DATABASE_URL! Ephemeral SQLite in /tmp will cause user session disconnects across serverless lambda containers. Please supply your Supabase DATABASE_URL in Vercel Environment Variables.")
     sqlite_file = config('SQLITE_DB_NAME', default='db.sqlite3')
     sqlite_path = Path('/tmp') / sqlite_file if IS_VERCEL else BASE_DIR / sqlite_file
     DATABASES = {
@@ -109,7 +138,6 @@ else:
         }
     }
 
-# Dynamic Caching Layer (Redis if REDIS_URL provided, else High-Performance LocMemCache)
 REDIS_URL = config('REDIS_URL', default=None)
 if REDIS_URL:
     CACHES = {
@@ -151,12 +179,67 @@ STATICFILES_DIRS = [
     d for d in [BASE_DIR / 'static', FRONTEND_DIST / 'assets'] if d.exists()
 ]
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
+USE_SUPABASE_STORAGE = config(
+    'USE_SUPABASE_STORAGE',
+    default=bool(config('SUPABASE_STORAGE_ACCESS_KEY', default='').strip() or config('SUPABASE_STORAGE_ENDPOINT', default='').strip()),
+    cast=bool
+)
+
+if USE_SUPABASE_STORAGE:
+    AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY', default='').strip()
+    AWS_SECRET_ACCESS_KEY = config('SUPABASE_STORAGE_SECRET_KEY', default='').strip()
+    AWS_STORAGE_BUCKET_NAME = config('SUPABASE_STORAGE_BUCKET_NAME', default='mathify-media').strip()
+    AWS_S3_ENDPOINT_URL = config('SUPABASE_STORAGE_ENDPOINT', default='').strip()
+    AWS_S3_REGION_NAME = config('SUPABASE_STORAGE_REGION', default='eu-west-1').strip()
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+
+    endpoint_clean = AWS_S3_ENDPOINT_URL.rstrip('/')
+    if 'supabase.co/storage/v1/s3' in endpoint_clean:
+        base_supabase = endpoint_clean.replace('/storage/v1/s3', '')
+        AWS_S3_CUSTOM_DOMAIN = f"{base_supabase.replace('https://', '')}/storage/v1/object/public/{AWS_STORAGE_BUCKET_NAME}"
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    else:
+        custom_domain = config('AWS_S3_CUSTOM_DOMAIN', default=None)
+        if custom_domain:
+            AWS_S3_CUSTOM_DOMAIN = custom_domain
+            MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+        else:
+            MEDIA_URL = f"{endpoint_clean}/{AWS_STORAGE_BUCKET_NAME}/"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_ROOT = ''
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = (Path('/tmp') / 'media') if IS_VERCEL else (BASE_DIR / 'media')
+    if not IS_VERCEL:
+        try:
+            MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+# Request body and upload sizes (prevent 400 RequestDataTooBig on valid media/video attachments)
+DATA_UPLOAD_MAX_MEMORY_SIZE = config('DATA_UPLOAD_MAX_MEMORY_SIZE', default=50 * 1024 * 1024, cast=int)  # 50 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = config('FILE_UPLOAD_MAX_MEMORY_SIZE', default=50 * 1024 * 1024, cast=int)  # 50 MB
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django REST Framework & Throttling
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -179,6 +262,7 @@ REST_FRAMEWORK = {
         'ai_tutor': config('THROTTLE_AI_TUTOR_RATE', default='30/minute'),
         'feed_post': config('THROTTLE_FEED_RATE', default='25/minute'),
         'score_award': config('THROTTLE_SCORE_RATE', default='15/hour'),
+        'competition_answer': config('THROTTLE_COMPETITION_ANSWER_RATE', default='30/minute'),
     }
 }
 

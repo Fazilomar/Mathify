@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import { SeminarCallModal } from '../components/seminar/SeminarCallModal';
 import { WhiteboardModal } from '../components/seminar/WhiteboardModal';
 import { ScheduleMeetingModal } from '../components/seminar/ScheduleMeetingModal';
+import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 export function GroupsPage() {
   const { user, isAuthenticated } = useAuth();
@@ -12,25 +14,90 @@ export function GroupsPage() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatAttachment, setChatAttachment] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [showMembers, setShowMembers] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const [roomFilter, setRoomFilter] = useState('');
+  const [mobileTab, setMobileTab] = useState('chat'); // 'rooms' | 'chat'
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [activeMeeting, setActiveMeeting] = useState(null);
   const [meetingDropdownOpen, setMeetingDropdownOpen] = useState(false);
+  const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState('');
   const [confirmEndMeeting, setConfirmEndMeeting] = useState(null);
+
+  const meetingDropdownRef = useRef(null);
+  const optionsMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (optionsMenuRef.current && !optionsMenuRef.current.contains(e.target)) {
+        setOptionsMenuOpen(false);
+      }
+      if (meetingDropdownRef.current && !meetingDropdownRef.current.contains(e.target)) {
+        setMeetingDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomTopic, setNewRoomTopic] = useState('');
   const [newRoomType, setNewRoomType] = useState('study');
+  const [newRoomPrivate, setNewRoomPrivate] = useState(false);
+  const [newRoomAvatar, setNewRoomAvatar] = useState(null);
+  const [newRoomAvatarPreview, setNewRoomAvatarPreview] = useState(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
+
+  const groupAvatarInputRef = useRef(null);
+
+  const isGroupCreator = Boolean(
+    (user && Number(activeGroup?.created_by_id) === Number(user.id)) ||
+    (user && activeGroup?.created_by === user.username) ||
+    (activeGroup?.created_by_id && Number(activeGroup?.created_by_id) === Number(API.getCurrentUserId()))
+  );
+
+  const isGroupMember = Boolean(
+    activeGroup?.is_member || isGroupCreator
+  );
 
   const chatScrollRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
-  const quickSymbols = ['\\forall', '\\exists', '\\in', '\\implies', '\\sum', '\\int', '\\mathbb{R}', '\\mathbb{C}'];
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [messages.length, activeGroup?.id]);
+
+  const quickSymbols = [
+    { label: '∀', code: '\\forall ' },
+    { label: '∃', code: '\\exists ' },
+    { label: '∈', code: '\\in ' },
+    { label: '∉', code: '\\notin ' },
+    { label: '⟹', code: '\\implies ' },
+    { label: '⟺', code: '\\iff ' },
+    { label: '∑', code: '\\sum ' },
+    { label: '∫', code: '\\int ' },
+    { label: 'ℝ', code: '\\mathbb{R}' },
+    { label: 'ℂ', code: '\\mathbb{C}' },
+    { label: 'ℤ', code: '\\mathbb{Z}' },
+    { label: 'ℕ', code: '\\mathbb{N}' },
+    { label: 'π', code: '\\pi ' },
+    { label: '∞', code: '\\infty ' },
+    { label: '√', code: '\\sqrt{} ' },
+  ];
 
   const fetchGroups = useCallback(async (silent = false, signal) => {
     try {
@@ -142,7 +209,10 @@ export function GroupsPage() {
             const formatted = list.map((m) => ({
               id: m.id,
               sender: m.sender || 'Scholar',
+              senderId: m.sender_id,
+              avatar: m.sender_avatar,
               text: m.content,
+              media: m.media,
               time: m.created_at
                 ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -205,6 +275,139 @@ export function GroupsPage() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [activeGroup?.id, messagesRefreshKey]);
+
+  useEffect(() => {
+    if (activeGroup?.id) {
+      fetchGroupMembers();
+      if (activeGroup.created_by_id === API.getCurrentUserId() && activeGroup.is_private) {
+        fetchJoinRequests();
+      }
+    } else {
+      setMembers([]);
+      setJoinRequests([]);
+    }
+  }, [activeGroup?.id]);
+
+  const fetchGroupMembers = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.get(`/api/social/groups/${activeGroup.id}/members/`);
+    if (res.ok) setMembers(await res.json());
+  };
+
+  const fetchJoinRequests = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.get(`/api/social/groups/${activeGroup.id}/join_requests/`);
+    if (res.ok) setJoinRequests(await res.json());
+  };
+
+  const handleJoinGroup = async () => {
+    if (!activeGroup?.id) return;
+    const res = await API.post(`/api/social/groups/${activeGroup.id}/join/`, {});
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setActiveGroup((prev) => ({ ...prev, is_member: data.status === 'approved' || !prev.is_private, request_status: data.status || null }));
+      fetchGroups(true);
+    }
+  };
+
+  const handleLeaveGroup = () => {
+    if (!activeGroup?.id) return;
+    setConfirmDialog({
+      title: `Exit #${activeGroup.name}`,
+      message: `Are you sure you want to exit #${activeGroup.name}? You will no longer receive seminar broadcasts or instant room alerts.`,
+      confirmText: 'Exit Room',
+      variant: 'warning',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.post(`/api/social/groups/${activeGroup.id}/leave/`, {});
+          if (res.ok) {
+            setActiveGroup((prev) => ({ ...prev, is_member: false, request_status: null }));
+            fetchGroups(true);
+            fetchGroupMembers();
+            setCopiedToast(`Exited #${activeGroup.name}`);
+            setTimeout(() => setCopiedToast(''), 2500);
+          }
+        } catch (err) {
+          console.error('Failed to exit group:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
+  };
+
+  const handleDeleteGroup = () => {
+    if (!activeGroup?.id) return;
+    setConfirmDialog({
+      title: `Delete #${activeGroup.name}`,
+      message: `Are you sure you want to permanently delete #${activeGroup.name}? All messages and seminar records in this room will be removed.`,
+      confirmText: 'Delete Room',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.delete(`/api/social/groups/${activeGroup.id}/`);
+          if (res.ok) {
+            setActiveGroup(null);
+            fetchGroups();
+            setCopiedToast('Study room deleted permanently.');
+            setTimeout(() => setCopiedToast(''), 2500);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            setCopiedToast(errData.detail || 'Could not delete room.');
+            setTimeout(() => setCopiedToast(''), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to delete group:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    if (!messageId) return;
+    setConfirmDialog({
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message? This action cannot be undone.',
+      confirmText: 'Delete Message',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try {
+          const res = await API.delete(`/api/social/messages/${messageId}/`);
+          if (res.ok) {
+            setMessages((prev) => prev.filter((m) => m.id !== messageId));
+            setCopiedToast('Message deleted.');
+            setTimeout(() => setCopiedToast(''), 2000);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            setCopiedToast(errData.detail || 'Could not delete message.');
+            setTimeout(() => setCopiedToast(''), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to delete message:', err);
+        } finally {
+          setConfirmLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
+  };
+
+  const handleRequestDecision = async (requestId, decision) => {
+    if (!activeGroup?.id) return;
+    const res = await API.post(`/api/social/groups/${activeGroup.id}/join-requests/${requestId}/${decision}/`, {});
+    if (res.ok) {
+      setJoinRequests((prev) => prev.filter((item) => item.id !== requestId));
+      fetchGroups(true);
+      fetchGroupMembers();
+    }
+  };
 
   const [showStartInstantModal, setShowStartInstantModal] = useState(false);
   const [customMeetingTitle, setCustomMeetingTitle] = useState('');
@@ -318,7 +521,7 @@ export function GroupsPage() {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text || !activeGroup?.id) return;
+    if ((!text && !chatAttachment) || !activeGroup?.id) return;
     setChatInput('');
 
     const tempId = Date.now();
@@ -326,20 +529,28 @@ export function GroupsPage() {
       id: tempId,
       sender: user?.username || 'You',
       text,
+      media: chatAttachment ? URL.createObjectURL(chatAttachment) : null,
+      senderId: user?.id,
+      avatar: user?.avatar,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'sending', // 'sending' | 'sent' | 'failed'
     };
     setMessages((prev) => [...prev, optimisticMsg]);
 
-    await sendMessage(tempId, text);
+    const attachment = chatAttachment;
+    setChatAttachment(null);
+    await sendMessage(tempId, text, attachment);
   };
 
-  const sendMessage = async (tempId, text) => {
+  const sendMessage = async (tempId, text, attachment = null) => {
     setMessages((prev) =>
       prev.map((m) => (m.id === tempId ? { ...m, status: 'sending' } : m))
     );
     try {
-      const res = await API.post(`/api/social/groups/${activeGroup.id}/messages/`, { content: text });
+      const body = new FormData();
+      if (text) body.append('content', text);
+      if (attachment) body.append('media', attachment);
+      const res = await API.post(`/api/social/groups/${activeGroup.id}/messages/`, body);
       if (res.ok) {
         const saved = await res.json();
         setMessages((prev) =>
@@ -348,7 +559,10 @@ export function GroupsPage() {
               ? {
                 id: saved.id,
                 sender: saved.sender || user?.username || 'You',
+                senderId: saved.sender_id,
+                avatar: saved.sender_avatar,
                 text: saved.content,
+                media: saved.media,
                 time: new Date(saved.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 status: 'sent',
               }
@@ -373,11 +587,49 @@ export function GroupsPage() {
   };
 
   const handleRetryMessage = (msg) => {
-    sendMessage(msg.id, msg.text);
+    sendMessage(msg.id, msg.text, null);
   };
 
   const handleDismissFailed = (msgId) => {
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
+  };
+
+  const handleGroupAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeGroup?.id) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, WEBP, GIF).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Room picture must be smaller than 10 MB.');
+      return;
+    }
+
+    try {
+      setUploadingGroupAvatar(true);
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await API.patch(`/api/social/groups/${activeGroup.id}/`, formData);
+      if (res.ok) {
+        const updated = await res.json();
+        setActiveGroup((prev) => (prev ? { ...prev, avatar: updated.avatar } : prev));
+        setGroups((prev) =>
+          prev.map((g) => (g.id === activeGroup.id ? { ...g, avatar: updated.avatar } : g))
+        );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.avatar ? (Array.isArray(err.avatar) ? err.avatar.join(' ') : err.avatar) : (err.detail || 'Failed to update group picture.'));
+      }
+    } catch (err) {
+      console.error('Failed to update group picture:', err);
+      alert('Network error while updating group picture.');
+    } finally {
+      setUploadingGroupAvatar(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   const handleCreateGroup = async (e) => {
@@ -386,11 +638,14 @@ export function GroupsPage() {
     setCreatingRoom(true);
 
     try {
-      const res = await API.post('/api/social/groups/', {
-        name: newRoomName.trim(),
-        description: newRoomTopic.trim(),
-        group_type: newRoomType,
-      });
+      const formData = new FormData();
+      formData.append('name', newRoomName.trim());
+      if (newRoomTopic.trim()) formData.append('description', newRoomTopic.trim());
+      formData.append('group_type', newRoomType);
+      formData.append('is_private', newRoomPrivate);
+      if (newRoomAvatar) formData.append('avatar', newRoomAvatar);
+
+      const res = await API.post('/api/social/groups/', formData);
       if (res.ok) {
         const newGroup = await res.json();
         setGroups((prev) => [newGroup, ...prev]);
@@ -398,9 +653,12 @@ export function GroupsPage() {
         setShowCreateModal(false);
         setNewRoomName('');
         setNewRoomTopic('');
+        setNewRoomPrivate(false);
+        setNewRoomAvatar(null);
+        setNewRoomAvatarPreview(null);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || 'Could not create study room. Ensure you are signed in.');
+        alert(err.detail || (err.avatar ? 'Invalid room picture.' : 'Could not create study room. Ensure you are signed in.'));
       }
     } catch {
       alert('Network error while establishing study room.');
@@ -416,10 +674,10 @@ export function GroupsPage() {
   });
 
   return (
-    <div style={{ width: '100%' }}>
-      {/* Header Banner */}
+    <div className="groups-shell" style={{ width: '100%' }}>
+      {/* Header Banner - Desktop Only */}
       <div
-        className="card"
+        className="card groups-banner-card desktop-only-banner"
         style={{
           padding: '24px 32px',
           marginBottom: '20px',
@@ -434,6 +692,7 @@ export function GroupsPage() {
               Collaborate in peer-led mathematical study groups, conduct real-time LaTeX whiteboard derivations, and participate in departmental seminar calls.
             </p>
           </div>
+
           <div className="mobile-stack" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
             <button
               id="create-room-btn"
@@ -453,13 +712,44 @@ export function GroupsPage() {
         </div>
       </div>
 
-      {/* Main Dual-Pane Studio Layout */}
+      {/* Main Dual-Pane / Off-Canvas Mobile Drawer Layout */}
       <div className="groups-layout">
-        {/* Left Column: Active Rooms Directory */}
-        <div className="card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D' }}>
+        {/* Backdrop for mobile rooms drawer */}
+        {sidebarOpen && (
+          <div
+            className="groups-sidebar-backdrop"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* Left Column: Active Rooms Directory (Off-Canvas Drawer on Mobile) */}
+        <aside
+          className={`groups-sidebar-col card ${sidebarOpen ? 'open' : ''}`}
+          style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#18181D', minHeight: 0 }}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Active Study Rooms</h2>
-            <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{filteredGroups.length} rooms</span>
+            <div>
+              <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Active Study Rooms</h2>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>{filteredGroups.length} rooms available</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={() => { setShowCreateModal(true); setSidebarOpen(false); }}
+                className="btn-primary"
+                style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
+                New
+              </button>
+              <button
+                type="button"
+                className="groups-sidebar-close"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close rooms list"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -473,7 +763,7 @@ export function GroupsPage() {
             />
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {loading ? (
               <div style={{ padding: '36px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <span className="material-symbols-outlined spin" style={{ fontSize: '28px', color: 'var(--primary)', marginBottom: '8px' }}>progress_activity</span>
@@ -484,7 +774,7 @@ export function GroupsPage() {
                 <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>meeting_room</span>
                 <p style={{ fontSize: '13.5px', color: 'var(--text)', fontWeight: 500, margin: '4px 0' }}>No study rooms found</p>
                 <p style={{ fontSize: '12px', color: 'var(--text-subtle)', margin: '0 0 16px' }}>Establish the first room to collaborate live.</p>
-                <button onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ padding: '8px 14px', fontSize: '12.5px', width: '100%' }}>
+                <button onClick={() => { setShowCreateModal(true); setSidebarOpen(false); }} className="btn-primary" style={{ padding: '8px 14px', fontSize: '12.5px', width: '100%' }}>
                   Create Study Room
                 </button>
               </div>
@@ -494,7 +784,10 @@ export function GroupsPage() {
                 return (
                   <div
                     key={g.id}
-                    onClick={() => setActiveGroup(g)}
+                    onClick={() => {
+                      setActiveGroup(g);
+                      setSidebarOpen(false);
+                    }}
                     style={{
                       padding: '14px',
                       borderRadius: '10px',
@@ -504,19 +797,52 @@ export function GroupsPage() {
                       transition: 'all 0.15s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '14px', color: isSelected ? 'var(--primary)' : 'var(--text)', lineHeight: 1.3 }}>
-                        {g.name}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            width: '26px',
+                            height: '26px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(229, 169, 60, 0.14)',
+                            border: '1px solid rgba(229, 169, 60, 0.28)',
+                            color: 'var(--primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                            overflow: 'hidden',
+                            position: 'relative',
+                          }}
+                        >
+                          <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
+                            {(g.name?.[0] || '#').toUpperCase()}
+                          </span>
+                          {g.avatar && (
+                            <img
+                              key={g.avatar}
+                              src={resolveMediaUrl(g.avatar)}
+                              alt=""
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                            />
+                          )}
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: isSelected ? 'var(--primary)' : 'var(--text)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {g.name}
+                        </div>
                       </div>
                       <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', backgroundColor: 'rgba(229, 169, 60, 0.12)', border: '1px solid var(--primary-border)', color: 'var(--primary)', fontWeight: 600, textTransform: 'capitalize', flexShrink: 0, marginLeft: '6px' }}>
                         {g.group_type || 'Study'}
                       </span>
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.35 }}>
-                      {g.description || 'General mathematical collaboration & problem solving'}
+                      <MathRenderer content={g.description || 'General mathematical collaboration & problem solving'} />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                      <span>Host: {g.created_by || 'Scholar'}</span>
+                      <span>Host: {(g.created_by || 'Scholar').split('@')[0]}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {g.active_meeting && (
                           <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '3px', fontWeight: 600 }}>
@@ -535,56 +861,312 @@ export function GroupsPage() {
               })
             )}
           </div>
-        </div>
+        </aside>
 
         {/* Right Column: Selected Group Live Discussion & Collaboration */}
-        <div className="card" style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', backgroundColor: '#18181D' }}>
+        <div
+          className="groups-chat-col card"
+          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', backgroundColor: '#18181D', minHeight: 0, overflow: 'hidden' }}
+        >
           {activeGroup ? (
             <>
-              <div style={{ paddingBottom: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>{activeGroup.name}</h2>
-                    <span className="badge-academic" style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}>
-                      {activeGroup.group_type || 'Study Room'}
-                    </span>
-                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>group</span>
-                      {activeGroup.member_count || 1} member{(activeGroup.member_count || 1) !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {activeGroup.description || 'Active live collaboration thread.'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: '12.5px' }} onClick={() => setShowWhiteboardModal(true)}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>draw</span>
-                    Whiteboard
+              <div className="groups-chat-col-header" style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '10px', flexShrink: 0 }}>
+                {/* Left Side: Rooms Drawer Toggle + Display Picture + Name & Members */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                  <button
+                    type="button"
+                    className="groups-sidebar-toggle"
+                    onClick={() => setSidebarOpen((prev) => !prev)}
+                    title="View all study rooms"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>meeting_room</span>
+                    <span className="desktop-only-text">Rooms</span>
+                    {groups.length > 0 && (
+                      <span className="groups-room-count-pill">
+                        {groups.length}
+                      </span>
+                    )}
                   </button>
 
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden' }}>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '7px 14px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
-                        onClick={openStartInstantModal}
+                  {/* Group Display Picture */}
+                  <div
+                    className="groups-header-avatar"
+                    onClick={() => isGroupCreator && groupAvatarInputRef.current?.click()}
+                    title={isGroupCreator ? "Click to change room picture" : activeGroup.name}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '11px',
+                      backgroundColor: 'rgba(229, 169, 60, 0.14)',
+                      border: '1px solid rgba(229, 169, 60, 0.3)',
+                      color: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '18px',
+                      fontWeight: 800,
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      position: 'relative',
+                      cursor: isGroupCreator ? 'pointer' : 'default',
+                    }}
+                  >
+                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 0 }}>
+                      {(activeGroup.name?.[0] || '#').toUpperCase()}
+                    </span>
+                    {activeGroup.avatar && (
+                      <img
+                        key={activeGroup.avatar}
+                        src={resolveMediaUrl(activeGroup.avatar)}
+                        alt=""
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+                      />
+                    )}
+
+                    {isGroupCreator && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: uploadingGroupAvatar ? 1 : 0,
+                          transition: 'opacity 0.2s ease',
+                          zIndex: 2,
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                        onMouseLeave={(e) => { if (!uploadingGroupAvatar) e.currentTarget.style.opacity = '0'; }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
-                        Start Meeting
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '7px 8px', fontSize: '12.5px', borderLeft: '1px solid rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-                        onClick={() => setMeetingDropdownOpen((prev) => !prev)}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_drop_down</span>
-                      </button>
+                        <span
+                          className={`material-symbols-outlined ${uploadingGroupAvatar ? 'spinning' : ''}`}
+                          style={{ fontSize: '19px', color: '#fff' }}
+                        >
+                          {uploadingGroupAvatar ? 'sync' : 'photo_camera'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {isGroupCreator && (
+                    <input
+                      ref={groupAvatarInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleGroupAvatarUpload}
+                      style={{ display: 'none' }}
+                      disabled={uploadingGroupAvatar}
+                    />
+                  )}
+
+                  {/* Group Name & Members Preview */}
+                  <div style={{ minWidth: 0, overflow: 'hidden', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
+                      <h2 style={{ fontSize: '16px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {activeGroup.name}
+                      </h2>
+                      <span className="badge-academic desktop-only-text" style={{ fontSize: '10.5px', padding: '1px 7px', textTransform: 'capitalize', flexShrink: 0 }}>
+                        {activeGroup.group_type || 'Study'}
+                      </span>
+                      {activeGroup.is_private && (
+                        <span title="Private room" style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--text-subtle)', flexShrink: 0 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
+                        </span>
+                      )}
                     </div>
 
-                    {meetingDropdownOpen && (
+                    {/* Members Line (Usernames & Count) */}
+                    <div
+                      onClick={() => { setShowMembers(true); fetchGroupMembers(); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        color: 'var(--text-subtle)',
+                        fontSize: '11.5px',
+                        marginTop: '3px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title="Click to view all members"
+                    >
+                      {/* Mini Stacked Avatars */}
+                      {members.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          {members.slice(0, 3).map((mem, i) => (
+                            <div
+                              key={mem.id || i}
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                backgroundColor: '#27272A',
+                                border: '1px solid #18181D',
+                                marginLeft: i > 0 ? '-5px' : '0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '8.5px',
+                                fontWeight: 700,
+                                color: 'var(--primary)',
+                                overflow: 'hidden',
+                                zIndex: 3 - i,
+                              }}
+                            >
+                              {mem.avatar ? (
+                                <img
+                                  src={mem.avatar}
+                                  alt=""
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                (mem.username || mem.user || 'S')[0].toUpperCase()
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {members.length > 0
+                          ? members.slice(0, 2).map((m) => m.username || m.user).join(', ') + (members.length > 2 ? ` +${members.length - 2}` : '')
+                          : `Host: ${(activeGroup.created_by || 'Scholar').split('@')[0]}`}
+                        {' • '}
+                        <strong style={{ color: 'var(--text-muted)' }}>
+                          {activeGroup.member_count || members.length || 1} member{activeGroup.member_count !== 1 ? 's' : ''}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side: Meeting button (for members) OR Join/Request button (for non-members) + Three-Dots Menu */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  {!isGroupMember ? (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleJoinGroup}
+                      style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        {activeGroup.request_status === 'pending' ? 'hourglass_top' : activeGroup.is_private ? 'lock_open' : 'group_add'}
+                      </span>
+                      <span>{activeGroup.request_status === 'pending' ? 'Pending' : activeGroup.is_private ? 'Request' : 'Join'}</span>
+                    </button>
+                  ) : (
+                    /* Start Meeting Split Button for Members */
+                    <div ref={meetingDropdownRef} style={{ position: 'relative' }}>
+                      <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          className="btn-primary groups-meeting-btn"
+                          style={{ padding: '7px 12px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                          onClick={openStartInstantModal}
+                          title="Start Instant Seminar Meeting"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
+                          <span className="desktop-only-text">Start Meeting</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary groups-meeting-split-arrow"
+                          style={{ padding: '7px 7px', fontSize: '12.5px', borderLeft: '1px solid rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                          onClick={() => setMeetingDropdownOpen((prev) => !prev)}
+                          title="Meeting options"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_drop_down</span>
+                        </button>
+                      </div>
+
+                      {meetingDropdownOpen && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 'calc(100% + 6px)',
+                            backgroundColor: '#1E1E26',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6)',
+                            zIndex: 60,
+                            minWidth: '190px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            onClick={() => {
+                              setMeetingDropdownOpen(false);
+                              openStartInstantModal();
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              fontSize: '12.5px',
+                              color: 'var(--text)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>videocam</span>
+                            <span>Start Instant Meeting</span>
+                          </div>
+                          <div
+                            onClick={() => {
+                              setMeetingDropdownOpen(false);
+                              setShowScheduleModal(true);
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              fontSize: '12.5px',
+                              color: 'var(--text)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#60A5FA' }}>calendar_month</span>
+                            <span>Schedule Seminar</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Three-Dots Menu (Whiteboard, Members, Requests, Exit, Delete) */}
+                  <div ref={optionsMenuRef} style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '6px',
+                        backgroundColor: optionsMenuOpen ? 'rgba(255, 255, 255, 0.08)' : undefined,
+                      }}
+                      onClick={() => setOptionsMenuOpen((prev) => !prev)}
+                      title="More group options"
+                      aria-label="More options"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>more_vert</span>
+                    </button>
+
+                    {optionsMenuOpen && (
                       <div
                         style={{
                           position: 'absolute',
@@ -592,54 +1174,103 @@ export function GroupsPage() {
                           top: 'calc(100% + 6px)',
                           backgroundColor: '#1E1E26',
                           border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6)',
-                          zIndex: 60,
-                          minWidth: '190px',
+                          borderRadius: '10px',
+                          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.65)',
+                          zIndex: 70,
+                          minWidth: '205px',
                           overflow: 'hidden',
+                          padding: '6px 0',
                         }}
                       >
                         <div
-                          onClick={() => {
-                            setMeetingDropdownOpen(false);
-                            openStartInstantModal();
-                          }}
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: '12.5px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                          onClick={() => { setOptionsMenuOpen(false); setShowWhiteboardModal(true); }}
+                          style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>videocam</span>
-                          <span>Start Instant Meeting</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>draw</span>
+                          <span>Open Whiteboard</span>
                         </div>
+
+                        <div
+                          onClick={() => { setOptionsMenuOpen(false); setShowMembers(true); fetchGroupMembers(); }}
+                          style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>group</span>
+                          <span>View Members ({activeGroup.member_count || members.length || 1})</span>
+                        </div>
+
+                        {isGroupCreator && (
+                          <div
+                            onClick={() => {
+                              setOptionsMenuOpen(false);
+                              groupAvatarInputRef.current?.click();
+                            }}
+                            style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>photo_camera</span>
+                            <span>Change Room Picture</span>
+                          </div>
+                        )}
+
+                        {activeGroup.created_by_id === API.getCurrentUserId() && activeGroup.is_private && (
+                          <div
+                            onClick={() => { setOptionsMenuOpen(false); setShowRequests(true); fetchJoinRequests(); }}
+                            style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>person_add</span>
+                            <span>Join Requests {joinRequests.length > 0 ? `(${joinRequests.length})` : ''}</span>
+                          </div>
+                        )}
+
                         <div
                           onClick={() => {
-                            setMeetingDropdownOpen(false);
-                            setShowScheduleModal(true);
+                            setOptionsMenuOpen(false);
+                            navigator.clipboard?.writeText(window.location.href);
+                            setCopiedToast('Room link copied!');
+                            setTimeout(() => setCopiedToast(''), 2500);
                           }}
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: '12.5px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                          style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'var(--text)' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>calendar_month</span>
-                          <span>Schedule Seminar</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>share</span>
+                          <span>Share Room Link</span>
                         </div>
+
+                        {(activeGroup.is_member || Number(activeGroup.created_by_id) === Number(API.getCurrentUserId() || user?.id)) && (
+                          <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '6px 0' }} />
+                        )}
+
+                        {activeGroup.is_member && (
+                          <div
+                            onClick={() => { setOptionsMenuOpen(false); handleLeaveGroup(); }}
+                            style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: '#F87171' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#F87171' }}>logout</span>
+                            <span>Exit Group</span>
+                          </div>
+                        )}
+
+                        {(Number(activeGroup.created_by_id) === Number(API.getCurrentUserId() || user?.id) || (user && activeGroup.created_by === user.username)) && (
+                          <div
+                            onClick={() => { setOptionsMenuOpen(false); handleDeleteGroup(); }}
+                            style={{ padding: '9px 15px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: '#EF4444' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.16)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#EF4444' }}>delete_forever</span>
+                            <span>Delete Room</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -683,7 +1314,7 @@ export function GroupsPage() {
                       />
                       <div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                          🔴 Live Seminar: {currentMeeting.title}
+                           Live Seminar: {currentMeeting.title}
                         </div>
                         <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
                           Hosted by @{currentMeeting.initiator || currentMeeting.initiator_username || 'Host'} • {currentMeeting.participants_count || 1} connected
@@ -738,7 +1369,7 @@ export function GroupsPage() {
                 );
               })()}
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div ref={messagesContainerRef} className="groups-messages-area" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {displayedMessages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>forum</span>
@@ -746,7 +1377,7 @@ export function GroupsPage() {
                       No messages yet in #{activeGroup.name}
                     </p>
                     <p style={{ fontSize: '12.5px', color: 'var(--text-subtle)' }}>
-                      Start the seminar discussion by sharing a lemma, question, or proof step below.
+                      Say hello or share a math question to start the conversation!
                     </p>
                   </div>
                 ) : (
@@ -798,7 +1429,7 @@ export function GroupsPage() {
                                   {mtgTitle}
                                 </h4>
                                 <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                                  Host: @{mtgHost} • Code: <strong style={{ color: 'var(--primary)' }}>{mtgCode}</strong>
+                                  Host: @{(mtgHost || 'Scholar').split('@')[0]} • Code: <strong style={{ color: 'var(--primary)' }}>{mtgCode}</strong>
                                 </span>
                               </div>
                             </div>
@@ -878,20 +1509,64 @@ export function GroupsPage() {
                     return (
                       <div
                         key={m.id}
+                        className={`group-message ${m.senderId && Number(m.senderId) === Number(API.getCurrentUserId() || user?.id) ? 'is-own' : ''}`}
                         style={{
                           padding: '10px 14px',
-                          backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : 'rgba(229, 169, 60, 0.08)',
-                          border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : '1px solid var(--primary-border)',
+                          backgroundColor: m.status === 'failed' ? 'rgba(220, 60, 60, 0.08)' : undefined,
+                          border: m.status === 'failed' ? '1px solid rgba(220, 60, 60, 0.4)' : undefined,
                           borderRadius: '8px',
                           fontSize: '13.5px',
                           opacity: m.status === 'sending' ? 0.6 : 1,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>{m.sender}</span>
-                          <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
+                        <div className="group-message-header" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                          <span className="group-message-sender" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: 'var(--primary)', fontSize: '12.5px' }}>
+                            <span className="group-avatar">
+                              {m.avatar ? <img src={m.avatar} alt="" /> : (m.sender?.[0]?.toUpperCase() || 'S')}
+                            </span>
+                            {m.sender}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: 'var(--text-subtle)', fontSize: '11px' }}>{m.time}</span>
+                            {m.id && (Number(m.senderId) === Number(API.getCurrentUserId() || user?.id) || m.sender === user?.username || (user && activeGroup.created_by_id === user.id)) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(m.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: '2px',
+                                  cursor: 'pointer',
+                                  color: 'var(--text-subtle)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  opacity: 0.6,
+                                  borderRadius: '4px',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#EF4444'; e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.color = 'var(--text-subtle)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                title="Delete this sent message"
+                              >
+                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                        <div style={{ color: 'var(--text)', marginTop: '2px' }}>
+                          <MathRenderer content={m.text} />
+                        </div>
+                        {m.media && (
+                          <div style={{ marginTop: '6px' }}>
+                            {typeof m.media === 'string' && m.media.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                              <img src={m.media} alt="Attachment" style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '6px', objectFit: 'contain' }} />
+                            ) : (
+                              <a href={m.media} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'underline' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>attach_file</span> View Attachment
+                              </a>
+                            )}
+                          </div>
+                        )}
                         {m.status === 'sending' && (
                           <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '4px' }}>Sending...</div>
                         )}
@@ -921,35 +1596,124 @@ export function GroupsPage() {
                 <div ref={chatScrollRef} />
               </div>
 
-              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px' }}>LaTeX:</span>
-                  {quickSymbols.map((sym) => (
-                    <button
-                      key={sym}
-                      type="button"
-                      onClick={() => setChatInput((prev) => prev + ` $${sym}$ `)}
-                      className="symbol-chip"
-                      style={{ fontSize: '11.5px', padding: '2px 7px' }}
-                    >
-                      ${sym}$
-                    </button>
-                  ))}
-                </div>
+              <div className="groups-composer-area" style={{ paddingTop: '14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+                {!isGroupMember ? (
+                  <div
+                    style={{
+                      padding: '14px 18px',
+                      backgroundColor: '#141418',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(229, 169, 60, 0.12)',
+                          color: 'var(--primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                          {activeGroup.is_private ? 'lock' : 'group_add'}
+                        </span>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>
+                          {activeGroup.request_status === 'pending'
+                            ? 'Join Request Pending'
+                            : activeGroup.is_private
+                            ? 'Private Study Room'
+                            : `Join #${activeGroup.name} to chat`}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-subtle)', marginTop: '2px' }}>
+                          {activeGroup.request_status === 'pending'
+                            ? 'The room host is reviewing your request to join.'
+                            : activeGroup.is_private
+                            ? 'Request access from the host to participate in discussions and live seminars.'
+                            : 'Join this study group to participate in discussions, share formulas, and post solutions.'}
+                        </div>
+                      </div>
+                    </div>
 
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
-                  <input
-                    type="text"
-                    className="glass-input"
-                    placeholder={`Message #${activeGroup.name} (use $...$ for LaTeX)...`}
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    style={{ fontSize: '13.5px', flex: 1 }}
-                  />
-                  <button type="submit" className="btn-primary" style={{ padding: '8px 20px', fontSize: '13.5px' }}>
-                    Send
-                  </button>
-                </form>
+                    {activeGroup.request_status === 'pending' ? (
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(229, 169, 60, 0.15)',
+                          color: 'var(--primary)',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>hourglass_empty</span>
+                        Pending Approval
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleJoinGroup}
+                        style={{ padding: '8px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>login</span>
+                        {activeGroup.is_private ? 'Request to Join' : 'Join Group'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-subtle)', alignSelf: 'center', marginRight: '4px', flexShrink: 0 }}>LaTeX:</span>
+                      {quickSymbols.map((s) => (
+                        <button
+                          key={s.label}
+                          type="button"
+                          onClick={() => setChatInput((prev) => (prev ? `${prev} $${s.code}$ ` : `$${s.code}$ `))}
+                          className="symbol-chip"
+                          style={{ fontSize: '12px', padding: '3px 8px', flexShrink: 0 }}
+                          title={s.code}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <form onSubmit={handleSendMessage} className="group-chat-form" style={{ display: 'flex', gap: '10px' }}>
+                      <label className="group-attach-button" title="Attach a file">
+                        <span className="material-symbols-outlined">add</span>
+                        <input type="file" onChange={(e) => setChatAttachment(e.target.files?.[0] || null)} hidden />
+                      </label>
+                      <input
+                        type="text"
+                        className="glass-input"
+                        placeholder={`Message #${activeGroup.name} (use $...$ for LaTeX)...`}
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        style={{ fontSize: '13.5px', flex: 1 }}
+                      />
+                      <button type="submit" className="btn-primary group-send-button" aria-label="Send message" title="Send message">
+                        <span className="material-symbols-outlined">arrow_upward</span>
+                      </button>
+                    </form>
+                    {chatAttachment && <div className="group-selected-file"><span className="material-symbols-outlined">attach_file</span>{chatAttachment.name}<button type="button" onClick={() => setChatAttachment(null)}>close</button></div>}
+                  </>
+                )}
               </div>
             </>
           ) : (
@@ -959,9 +1723,26 @@ export function GroupsPage() {
               <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', maxWidth: '360px', margin: '0 auto 18px' }}>
                 Select an existing study room on the left, or establish a new mathematical seminar room.
               </p>
-              <button onClick={() => setShowCreateModal(true)} className="btn-primary" style={{ padding: '9px 20px', fontSize: '13px' }}>
-                Create Study Room
-              </button>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="btn-secondary"
+                  style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>meeting_room</span>
+                  Browse Rooms ({groups.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(true)}
+                  className="btn-primary"
+                  style={{ padding: '9px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>add</span>
+                  Create Study Room
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -984,12 +1765,81 @@ export function GroupsPage() {
                   Create an open mathematical seminar room for live discussion and whiteboarding.
                 </p>
               </div>
+
               <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-subtle)', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Room Picture Selector */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '54px',
+                    height: '54px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(229, 169, 60, 0.12)',
+                    border: '1px dashed rgba(229, 169, 60, 0.4)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '22px',
+                    fontWeight: 800,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                  }}
+                >
+                  {newRoomAvatarPreview ? (
+                    <img src={newRoomAvatarPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (newRoomName?.[0] || '#').toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <label
+                    className="btn-secondary"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add_photo_alternate</span>
+                    {newRoomAvatar ? 'Change Picture' : 'Upload Picture'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setNewRoomAvatar(file);
+                          setNewRoomAvatarPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                  {newRoomAvatar && (
+                    <button
+                      type="button"
+                      onClick={() => { setNewRoomAvatar(null); setNewRoomAvatarPreview(null); }}
+                      style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '11.5px', marginLeft: '8px', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                  <div style={{ fontSize: '11px', color: 'var(--text-subtle)', marginTop: '3px' }}>
+                    Optional room picture or badge (PNG, JPG up to 10MB)
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>Room Name *</label>
                 <input
@@ -1029,6 +1879,11 @@ export function GroupsPage() {
                 </select>
               </div>
 
+              <label className="group-privacy-option">
+                <input type="checkbox" checked={newRoomPrivate} onChange={(e) => setNewRoomPrivate(e.target.checked)} />
+                <span><strong>Private group</strong><small>People can see the preview, but must request approval before joining the chat.</small></span>
+              </label>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary" style={{ padding: '9px 18px', fontSize: '13.5px' }}>
                   Cancel
@@ -1039,6 +1894,21 @@ export function GroupsPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {showMembers && activeGroup && (
+        <div className="group-panel-overlay" onClick={() => setShowMembers(false)}>
+          <div className="group-panel card" onClick={(e) => e.stopPropagation()}>
+            <div className="group-panel-heading"><h3>Group members</h3><button onClick={() => setShowMembers(false)} aria-label="Close members"><span className="material-symbols-outlined">close</span></button></div>
+            {members.map((member) => <div className="group-member-row" key={member.id}><span className="group-avatar">{member.avatar ? <img src={member.avatar} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : member.username?.[0]?.toUpperCase()}</span><span>{member.username || member.user}</span>{member.user_id === activeGroup.created_by_id && <span className="badge-academic">Creator</span>}</div>)}
+          </div>
+        </div>
+      )}
+
+      {showRequests && activeGroup && (
+        <div className="group-panel-overlay" onClick={() => setShowRequests(false)}>
+          <div className="group-panel card" onClick={(e) => e.stopPropagation()}><div className="group-panel-heading"><h3>Join requests</h3><button onClick={() => setShowRequests(false)} aria-label="Close requests"><span className="material-symbols-outlined">close</span></button></div>{joinRequests.length === 0 ? <p className="group-panel-empty">No pending requests.</p> : joinRequests.map((item) => <div className="group-member-row" key={item.id}><span className="group-avatar">{item.avatar ? <img src={item.avatar} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : item.username?.[0]?.toUpperCase()}</span><span>{item.username}</span><button className="btn-primary" onClick={() => handleRequestDecision(item.id, 'approve')}>Approve</button><button className="btn-secondary" onClick={() => handleRequestDecision(item.id, 'decline')}>Decline</button></div>)}</div>
         </div>
       )}
 
@@ -1385,6 +2255,22 @@ export function GroupsPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Modern Confirmation Modal */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={Boolean(confirmDialog)}
+          onClose={() => {
+            if (!confirmLoading) setConfirmDialog(null);
+          }}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText || 'Confirm'}
+          cancelText="Cancel"
+          variant={confirmDialog.variant || 'danger'}
+          isLoading={confirmLoading}
+        />
       )}
     </div>
 

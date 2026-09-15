@@ -21,16 +21,16 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.views.generic import TemplateView
-from accounts.views import MeView, MathifyTokenObtainPairView
+from accounts.views import MeView, EmailOrUsernameTokenObtainPairView
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # JWT auth
-    path('api/auth/token/', MathifyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # JWT auth (supports both email and username seamlessly)
+    path('api/auth/token/', EmailOrUsernameTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/token/', MathifyTokenObtainPairView.as_view(), name='token_obtain_pair_alias'),
+    path('api/token/', EmailOrUsernameTokenObtainPairView.as_view(), name='token_obtain_pair_alias'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh_alias'),
     path('api/auth/me/', MeView.as_view(), name='auth_me_direct'),
 
@@ -42,8 +42,14 @@ urlpatterns = [
     path('api/studio/', include('studio.urls')),
     path('api/rankings/', include('rankings.urls')),
     path('api/ai-tutor/', include('ai_tutor.urls')),
+    path('api/notifications/', include('notifications.urls')),
     path('api/', include('notifications.urls')),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+]
+
+if getattr(settings, 'MEDIA_ROOT', None) and str(getattr(settings, 'MEDIA_URL', '')).startswith('/'):
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if getattr(settings, 'STATIC_ROOT', None) and str(getattr(settings, 'STATIC_URL', '')).startswith('/'):
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 from django.views.static import serve
 
@@ -87,6 +93,7 @@ if getattr(settings, 'FRONTEND_DIST', None) and settings.FRONTEND_DIST.exists():
     ]
 
 urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     re_path(r'^(?!api/|admin/|media/|static/|assets/).*$', spa_or_api_root, name='spa_catchall'),
 ]
 

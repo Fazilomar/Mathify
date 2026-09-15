@@ -163,8 +163,14 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
         except Exception:
             has_tutor = False
 
+        default_prompt = (
+            'You are the Mathify AI Theorem Research Mentor. You explain mathematical concepts and derivations '
+            'with rigorous academic precision. ALWAYS format mathematical expressions using standard LaTeX notation: '
+            'use $...$ for inline formulas (e.g. $e^{i\\pi} + 1 = 0$, $x \\in \\mathbb{R}$) and $$...$$ for block '
+            'display equations on their own lines. Use clean Markdown headings (##, ###) and bullet points for derivations.'
+        )
         system_prompt = (session.tutor.model_config.get('system_prompt', '')
-                         if has_tutor else 'You are a helpful math tutor.')
+                         if has_tutor and session.tutor.model_config.get('system_prompt') else default_prompt)
 
         user = None
         try:
@@ -185,10 +191,15 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 timeout_val = config('AI_TIMEOUT_SECONDS', default=15, cast=int)
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={gemini_key}"
                 contents = []
-                for m in history:
+                allowed_mimes = ('image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf')
+                last_attachment_index = max(
+                    (i for i, m in enumerate(history) if m.get('file_data') and m.get('file_mime') in allowed_mimes),
+                    default=-1
+                )
+                for idx, m in enumerate(history):
                     role = 'model' if m['role'] == 'assistant' else 'user'
                     parts = []
-                    if m.get('file_data') and m.get('file_mime'):
+                    if idx == last_attachment_index and m.get('file_data') and m.get('file_mime') in allowed_mimes:
                         parts.append({
                             "inlineData": {
                                 "mimeType": m['file_mime'],
@@ -262,7 +273,7 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 return
 
         # If no gemini key is configured
-        err_msg = "⚠️ Live Gemini AI Reasoning Engine is not configured. Please supply a valid GEMINI_API_KEY in your .env file."
+        err_msg = "Live Gemini AI Reasoning Engine is not configured. Please supply a valid GEMINI_API_KEY in your .env file."
         yield f"data: {json.dumps({'text': err_msg})}\n\n"
         if session and getattr(session, 'id', None):
             SessionMessage.objects.create(
@@ -270,9 +281,14 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             )
         yield f"data: {json.dumps({'done': True})}\n\n"
 
-    def _get_ai_reply(self, session: ChatSession, history: list) -> str:
+        default_prompt = (
+            'You are the Mathify AI Theorem Research Mentor. You explain mathematical concepts and derivations '
+            'with rigorous academic precision. ALWAYS format mathematical expressions using standard LaTeX notation: '
+            'use $...$ for inline formulas (e.g. $e^{i\\pi} + 1 = 0$, $x \\in \\mathbb{R}$) and $$...$$ for block '
+            'display equations on their own lines. Use clean Markdown headings (##, ###) and bullet points for derivations.'
+        )
         system_prompt = (session.tutor.model_config.get('system_prompt', '')
-                         if session and session.tutor else 'You are a helpful math tutor.')
+                         if session and session.tutor and session.tutor.model_config.get('system_prompt') else default_prompt)
         
         user = None
         if session:
@@ -291,10 +307,15 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 timeout_val = config('AI_TIMEOUT_SECONDS', default=15, cast=int)
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
                 contents = []
-                for m in history:
+                allowed_mimes = ('image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf')
+                last_attachment_index = max(
+                    (i for i, m in enumerate(history) if m.get('file_data') and m.get('file_mime') in allowed_mimes),
+                    default=-1
+                )
+                for idx, m in enumerate(history):
                     role = 'model' if m['role'] == 'assistant' else 'user'
                     parts = []
-                    if m.get('file_data') and m.get('file_mime'):
+                    if idx == last_attachment_index and m.get('file_data') and m.get('file_mime') in allowed_mimes:
                         parts.append({
                             "inlineData": {
                                 "mimeType": m['file_mime'],
@@ -322,7 +343,7 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 return f"[AI Tutor Connection Error (Gemini)]: {str(e)}"
 
-        return "⚠️ Live Gemini AI Reasoning Engine is not configured. Please supply a valid GEMINI_API_KEY in your .env file."
+        return "Live Gemini AI Reasoning Engine is not configured. Please supply a valid GEMINI_API_KEY in your .env file."
 
     def _get_app_context_prompt(self, user):
 
@@ -356,23 +377,38 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
                 pass
 
         return f"""
-[MATHIFY EVENT & STANDING STATUS]
+[MATHIFY PLATFORM ARCHITECTURE & EVENT CONTEXT]
 - Active Competitions:
 {comps_str}
 - Global Leaderboard (Top 5):
 {leaderboard_str}
 - Current User Status:
   * Username: @{username}
-  * Points: {user_points}
-  * Rank: {user_rank}
+  * Axiom Points: {user_points}
+  * Global Rank: {user_rank}
 
-- Rules/Participation Info:
-  * Publish a proof by going to the Math Studio, creating a creation, choosing 'Public' visibility, and saving it (+50 pts).
-  * Participate in live competitions by visiting the 'Competitions' page, viewing active events, and solving/submitting solutions (+10 pts per submit).
-  * Direct the user if they get lost!
-  * You can assist user on how to solve a problem and give a perfect explanation of the problem and help user visit the basics of the problem so they get a better understanding of it.
+[PLATFORM GUIDELINES & OFFERINGS: STUDENTS, RESEARCHERS & ORGANIZERS]
+Mathify is the unified academic social hub and mathematical research workspace. Always actively assist both Participants and Organizers with the platform's full suite of capabilities:
+
+1. FOR STUDENTS (Competitors & Researchers):
+   - Competitions: Compete in live academic and Olympiad contests. Solve question prompts with precision; correct solutions earn Axiom Points that increase your ranking on the Global and Event Leaderboards.
+   - Proof Studio: Author, format, and publish step-by-step rigorous mathematical derivations with live LaTeX typesetting. Cite foundational axioms (Completeness of ℝ, Euler's Identity, Stokes' Theorem, Cauchy-Schwarz) and participate in peer review consensus by endorsing (Q.E.D.) peer preprints.
+   - Collaboration Groups: Join specialized academic research channels (Real Analysis, Abstract Algebra, Topology, etc.) for group problem solving, LaTeX messaging, and resource sharing.
+   - Mathify Meet & Whiteboard: Join live video seminars and interactive mathematical whiteboards for real-time proof diagramming.
+   - Academic Feed: Share insights, post LaTeX formulas and proofs, ask questions, and engage in constructive peer discussion.
+   - Mentorship: You are their 24/7 research partner for step-by-step derivations, intuition, counterexamples, and Olympiad problem-solving strategies.
+
+2. FOR ORGANIZERS (Professors, Contest Hosts & Seminar Leaders):
+   - Hosting Competitions: Help organizers frame clear problem statements, structure difficulty levels, establish rubrics, and guide participants during active tournament windows.
+   - Live Seminars & Defense: Organizers can host live lectures, workshops, or thesis reviews using Mathify Meet and the interactive whiteboard.
+   - Research Group Moderation: Manage departmental hubs, organize discussion threads, and distribute problem sets.
+   - Peer Review Consensus: Guide academic standards by reviewing Proof Studio preprints according to AMS rigor standards.
+
+3. MENTOR INSTRUCTIONS:
+   - Direct users immediately to the relevant page or feature whenever they inquire about how to participate, host, compete, or collaborate.
+   - If a participant asks for help solving a problem, break it down from first principles, explain the underlying intuition, and guide them through rigorous LaTeX steps without simply giving away unearned competition answers.
+   - If an organizer asks for advice, assist with academic formulation, problem design, and event facilitation.
 """
-
 
 from rest_framework.renderers import BaseRenderer, JSONRenderer, BrowsableAPIRenderer
 
@@ -398,6 +434,9 @@ class ChatAPIView(APIView):
     def post(self, request):
         from rest_framework.response import Response
         user_message = request.data.get('message', '').strip() or request.data.get('content', '').strip()
+        file_data = request.data.get('file_data') or ''
+        file_name = request.data.get('file_name') or ''
+        file_mime = request.data.get('file_mime') or ''
         if not user_message:
             return Response({'error': 'Message content cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -420,10 +459,21 @@ class ChatAPIView(APIView):
 
         if session:
             SessionMessage.objects.create(
-                session=session, role=SessionMessage.ROLE_USER, content=user_message
+                session=session,
+                role=SessionMessage.ROLE_USER,
+                content=user_message,
+                file_data=file_data,
+                file_name=file_name,
+                file_mime=file_mime,
             )
             history = [
-                {'role': m.role, 'content': m.content}
+                {
+                    'role': m.role,
+                    'content': m.content,
+                    'file_data': m.file_data,
+                    'file_name': m.file_name,
+                    'file_mime': m.file_mime,
+                }
                 for m in SessionMessage.objects.filter(session=session)
             ]
             helper = ChatSessionViewSet()
@@ -454,7 +504,13 @@ class ChatAPIView(APIView):
             # Guest session fallback
             mock_session = ChatSession(title="Guest Session")
             helper = ChatSessionViewSet()
-            history = [{'role': 'user', 'content': user_message}]
+            history = [{
+                'role': 'user',
+                'content': user_message,
+                'file_data': file_data,
+                'file_name': file_name,
+                'file_mime': file_mime,
+            }]
 
             if want_stream:
                 def stream_gen():
@@ -472,4 +528,4 @@ class ChatAPIView(APIView):
                 'reply': ai_reply,
                 'content': ai_reply,
                 'session_id': None,
-            })
+            })

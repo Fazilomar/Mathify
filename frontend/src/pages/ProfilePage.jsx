@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import Modal from '../components/common/Modal';
 
 export function ProfilePage() {
@@ -16,6 +16,44 @@ export function ProfilePage() {
   const [dept, setDept] = useState('');
   const [year, setYear] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, WEBP, GIF).');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Avatar image must be smaller than 10 MB.');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const res = await API.patch('/api/accounts/me/profile/', formData);
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile((prev) => ({ ...prev, ...updated }));
+        if (updateProfile) {
+          updateProfile(updated);
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.avatar ? (Array.isArray(err.avatar) ? err.avatar.join(' ') : err.avatar) : (err.detail || 'Failed to upload avatar.'));
+      }
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      alert('Failed to upload avatar.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     const loadProfileData = async () => {
@@ -81,24 +119,82 @@ export function ProfilePage() {
       {/* Profile Header Card */}
       <div className="glass-card" style={{ padding: '28px', marginBottom: '24px', position: 'relative' }}>
         <div style={{ display: 'flex', flexDirection: 'column', smDirection: 'row', gap: '20px', alignItems: 'center' }}>
-          {/* Avatar */}
-          <div
-            style={{
-              width: '76px',
-              height: '76px',
-              borderRadius: '12px',
-              backgroundColor: 'var(--surface-input)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--primary)',
-              fontWeight: 700,
-              fontSize: '28px',
-              flexShrink: 0,
-            }}
-          >
-            {currentUsername[0]?.toUpperCase()}
+          {/* Avatar with Upload Action */}
+          <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                width: '84px',
+                height: '84px',
+                borderRadius: '16px',
+                backgroundColor: 'var(--surface-input)',
+                border: '2px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary)',
+                fontWeight: 700,
+                fontSize: '32px',
+                flexShrink: 0,
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              {profile?.avatar || user?.avatar ? (
+                <img
+                  src={resolveMediaUrl(profile?.avatar || user?.avatar)}
+                  alt={currentUsername}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                currentUsername[0]?.toUpperCase()
+              )}
+
+              {uploadingAvatar && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span className="material-symbols-outlined spinning" style={{ color: 'var(--primary)', fontSize: '24px' }}>sync</span>
+                </div>
+              )}
+            </div>
+
+            <label
+              htmlFor="avatar-upload-input"
+              title="Upload profile photo"
+              style={{
+                position: 'absolute',
+                bottom: '-4px',
+                right: '-4px',
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--primary)',
+                color: '#000',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                border: '2px solid #1e1e24',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', fontWeight: 700 }}>photo_camera</span>
+            </label>
+            <input
+              id="avatar-upload-input"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={handleAvatarUpload}
+              style={{ display: 'none' }}
+              disabled={uploadingAvatar}
+            />
           </div>
 
           {/* User Info */}
@@ -150,6 +246,7 @@ export function ProfilePage() {
 
         {/* Academic Statistics Bar */}
         <div
+          className="profile-stats-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -188,7 +285,7 @@ export function ProfilePage() {
           Honors & Badges
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
+        <div className="profile-achievements-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '12px' }}>
           {badges.map((b) => (
             <div
               key={b.id || b.name}

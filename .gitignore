@@ -13,6 +13,8 @@ venv/
 env/
 ENV/
 .venv/
+*.session
+*.session-journal
 
 # Node / Frontend
 node_modules/

@@ -39,6 +39,7 @@ class Creation(models.Model):
     )
     content = models.TextField(blank=True)         # rich text / markdown
     latex_content = models.TextField(blank=True)   # raw LaTeX source
+    media = models.FileField(upload_to='studio/media/', blank=True, null=True)  # walkthrough video/audio or graph snapshot
     formulas = models.ManyToManyField(Formula, blank=True, related_name='used_in')
     visibility = models.CharField(
         max_length=20, choices=VISIBILITY_CHOICES, default=VISIBILITY_PUBLIC

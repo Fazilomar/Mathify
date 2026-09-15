@@ -1,112 +1,182 @@
-# Mathify: Community for STEM students most especially Mathematics students.
+# Mathify: All-in-one social community for Math and STEM peeps.
 
-A full-stack mathematical collaboration and competition platform built with **Django REST Framework** (Backend) and **React + Vite** (Frontend).
+A full-stack mathematical collaboration, proof authoring, and competitive problem-solving platform designed for university scholars, researchers, and STEM students. Mathify combines rigorous LaTeX mathematical typesetting, AI-assisted tutoring, synchronous group video calls, shared digital whiteboards, and a verified Point competition protocol.
 
 ---
 
-## Project Architecture
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph Client["Frontend Client (React 18 + Vite)"]
+        UI[Sleek Academic Dark UI]
+        Router[React Router v6]
+        AuthCtx[Auth Context & JWT Store]
+        KaTeX[KaTeX LaTeX Engine]
+        Whiteboard[Live Canvas Whiteboard]
+        
+        UI --> Router
+        Router --> AuthCtx
+        UI --> KaTeX
+        UI --> Whiteboard
+    end
+
+    subgraph Gateway["API Gateway / Transport Layer"]
+        HTTP[REST Endpoints /api/*]
+        AuthHeaders[Bearer JWT Authentication]
+        CORS[CORS Headers & Security Middleware]
+    end
+
+    subgraph Backend["Django REST Backend (Python 3)"]
+        AuthApp["accounts (User Profiles & Credentials)"]
+        FeedApp["feed (Discussions, KaTeX Posts, Media)"]
+        StudioApp["studio (Proof Studio & Formal Lemmas)"]
+        AITutorApp["ai_tutor (Gemini Socratic Tutor)"]
+        SocialApp["social (Study Rooms, Calls, Whiteboard)"]
+        CompApp["rankings & competitions (Axiom Point Protocol)"]
+        LibApp["library (Monographs, Papers, Theorems)"]
+    end
+
+    subgraph External["External Services & Data Tier"]
+        DB[(PostgreSQL Database)]
+        Gemini[Google Gemini 1.5 Flash API]
+        MediaStorage[Cloud Media / Image Storage]
+    end
+
+    Client -->|HTTPS / JSON| Gateway
+    Gateway --> Backend
+    Backend --> DB
+    AITutorApp -->|Prompt Engineering & LaTeX Instruction| Gemini
+    FeedApp --> MediaStorage
+    SocialApp --> DB
+```
+
+---
+
+## Core Modules & Features
+
+### 1. Academic Feed & Mathematical Discourse
+- **Real-Time KaTeX Typesetting**: Native parsing and rendering of both inline (`$...$`) and display (`$$...$$`) LaTeX equations.
+- **Symbol Composer Toolbar**: Quick insertion of mathematical operators ($\forall$, $\exists$, $\in$, $\notin$, $\implies$, $\iff$, $\sum$, $\int$, $\mathbb{R}$, $\mathbb{C}$, $\mathbb{Z}$, $\mathbb{N}$, $\pi$, $\infty$, $\sqrt{}$).
+- **Academic Endorsements & Discussions**: Peer-reviewed theorem discussions, mathematical question threads, image attachment support, and bookmarking.
+
+### 2. Formal Proof Studio
+- **Structured Theorem Verification**: Environment for composing formal mathematical proofs with theorem titles, lemmas, hypothesis assumptions, and Q.E.D. derivations.
+- **Split-Pane Live Preview**: Simultaneous markdown and LaTeX compilation alongside raw notation input.
+- **Subfield Tagging**: Classification across Pure & Applied Mathematics, Abstract Algebra, Real Analysis, Topology, Differential Geometry, and Number Theory.
+
+### 3. AI Tutor (Powered by Google Gemini)
+- **Assisted Learning**: Rigorous step-by-step guidance without handing out raw solutions, prompting scholars to discover lemmas independently.
+- **LaTeX Math Output**: Enforces clean LaTeX notation for formulas and proofs.
+- **Multi-Session Context**: Dynamic conversation management with persistent conversation history, session drawer, and quick mathematical inquiry chips.
+
+### 4. Synchronous Study Rooms & Group Calls
+- **Live Collaborative Rooms**: Peer-led rooms categorized into Study, Research, Problem Solving, and Departmental groups.
+- **Off-Canvas Responsive Drawer**: Clean master-detail view on desktop, and a slide-out drawer on mobile for uncluttered screen space.
+- **Group Calls**: Instant meeting initiation with unique codes (`mtf-xxx-xxx`) and direct links for academic groups.
+- **Interactive Whiteboard**: Integrated digital whiteboard for freehand derivations, geometric constructions, and mathematical sketching.
+
+### 5. Competitions & Axiom Point Protocol
+- **Axiom Point Economy**: Strict academic scoring. Points are awarded **exclusively for solving and answering competition questions correctly** (+10 Points per validated answer).
+- **Timed Mathematical Sprints**: Timed problem sets featuring varying difficulty tiers from foundational calculus to Olympiad-level combinatorics.
+- **Institutional & Global Leaderboards**: Live scholar standings and university departmental rankings.
+
+### 6. Curated Mathematical Library
+- **Research Repository**: Centralized archive of mathematical monographs, lecture notes, formula sheets, and peer-reviewed publications.
+- **Field Categorization**: Filter by discipline (Linear Algebra, Complex Analysis, Probability & Statistics, Discrete Mathematics, etc.).
+
+---
+
+## Project Structure
 
 ```
 stitch_mathify_social_hub/
-├── backend/                  
-│   ├── accounts/             
-│   ├── ai_tutor/             
-│   ├── feed/                 
-│   ├── library/              
-│   ├── mathify/              
-│   ├── rankings/             
-│   ├── social/               
-│   ├── studio/               
-│   ├── requirements.txt      
-│   └── vercel.json           
-├── frontend/                 
-│   ├── src/                  
-│   ├── package.json          
-│   └── vercel.json          
+├── backend/                      
+│   ├── accounts/                 
+│   ├── ai_tutor/                 
+│   ├── feed/                     
+│   ├── library/                  
+│   ├── mathify/                  
+│   ├── rankings/                 
+│   ├── social/                   
+│   ├── studio/                    
+│   ├── manage.py
+│   ├── requirements.txt
+│   └── vercel.json               
+├── frontend/                      
+│   ├── public/
+│   ├── src/
+│   │   ├── api/                   
+│   │   ├── assets/                
+│   │   ├── components/
+│   │   │   ├── common/            
+│   │   │   ├── layout/           
+│   │   │   └── seminar/           
+│   │   ├── context/               
+│   │   ├── pages/                 
+│   │   ├── App.jsx                
+│   │   ├── index.css              
+│   │   └── main.jsx
+│   ├── package.json
+│   ├── vite.config.js
+│   └── vercel.json                
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Deploying to Vercel (Separately from Unified Monorepo)
+## How It Works
 
-### 1. Deploy the Backend
+### 1. Authentication & Route Protection
+- Uses JSON Web Tokens (`access` and `refresh` tokens) managed via `AuthContext`.
+- Unauthenticated visitors have access to the Landing / Welcome overview. All internal features (Feed, Proof Studio, Groups, AI Tutor, Library, Leaderboard) are guarded by `<ProtectedRoute>` which redirects unauthorized requests to `/login`.
+- Global Axios/Fetch client automatically appends `Authorization: Bearer <token>` to outbound requests and handles silent token refresh upon expiration.
 
-1. Go to [Vercel Dashboard](https://vercel.com/new) and import this GitHub repository (`Mathify`).
-2. In the project configuration:
-   - **Project Name**: e.g., `mathify-backend`
-   - **Root Directory**: Click **Edit** and select **`backend`**.
-   - **Framework Preset**: **Other** (Vercel automatically detects Python with `vercel.json`).
-3. Under **Environment Variables**, add:
-   - `SECRET_KEY`: A strong random string.
-   - `DEBUG`: `False`
-   - `ALLOWED_HOSTS`: `*`
-   - `DATABASE_URL`: Your PostgreSQL connection string (from Neon, Supabase, Vercel Postgres, or AWS RDS).
-   - `GEMINI_API_KEY`: Your Google Gemini API key.
-4. Click **Deploy**. Note down your deployed backend URL (e.g., `https://mathify-backend.vercel.app`).
+### 2. Mathematical Typesetting Pipeline
+- LaTeX equations wrapped in `$..$` (inline) or `$$..$$` (display mode) are parsed by `<MathRenderer>`.
+- KaTeX executes client-side rendering with error boundaries, preventing malformed equations from breaking page layouts.
 
----
-
-### 2. Deploy the Frontend
-
-1. In [Vercel Dashboard](https://vercel.com/new), import the same GitHub repository again.
-2. In the project configuration:
-   - **Project Name**: e.g., `mathify-frontend`
-   - **Root Directory**: Click **Edit** and select **`frontend`**.
-   - **Framework Preset**: **Vite**.
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-3. Under **Environment Variables**, add:
-   - `VITE_API_URL`: The URL of your deployed backend (e.g., `https://mathify-backend.vercel.app`).
-4. Click **Deploy**.
+### 3. Synchronous Collaboration Flow
+- Scholars establish or join a Study Room under `/groups`.
+- The room creator or host can initiate a **Live group call**; participants in the room receive real-time notification cards with one-click **Join Meeting** access.
+- Simultaneous derivations are conducted via the shared **Whiteboard**, allowing multi-modal academic collaboration alongside the text chat.
 
 ---
 
-## Local Development
+## Local Development Setup
 
-### Backend
+### Prerequisites
+- Python 3.10+
+- Node.js 18+ and npm
+- PostgreSQL (or local SQLite for development)
+
+### 1. Backend Setup
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate      # On Windows
+
+# Activate virtual environment
+venv\Scripts\activate 
+
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
+Backend API will be accessible at `http://127.0.0.1:8000`.
 
-### Frontend
+### 2. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173` to test locally.
+Frontend development server will be running at `http://localhost:5173`.
 
-## Mobile delivery at $0
+---
 
-The frontend includes an installable iOS PWA and a public `/download` page for
-Android. iOS users open the site in Safari and choose **Share -> Add to Home
-Screen**. Android builds are produced by `.github/workflows/build-apk.yml` on
-GitHub-hosted runners. Every `main` build is available as an Actions artifact;
-version tags (`v1.0.0`) also attach an unsigned debug APK to a GitHub Release.
+## Academic Ethics & Axiom Protocol
 
-The Capacitor wrapper in `frontend/capacitor.config.json` loads
-`https://mathify-coral.vercel.app`, so merged frontend deployments appear in the
-wrapper without rebuilding it. This requires network access on first load and
-does not provide Play Store distribution or signed release publishing.
-
-```bash
-cd frontend
-npm ci
-npm run build
-npm run lint
-
-cd ..
-python scripts/compress_images.py frontend/public
-```
-
-The Android application ID is `com.aliyudavid.mathify`. Keep it stable if the
-native project is generated later for signed distribution. The frontend and
-backend are deployed as separate Vercel projects, so active routing and cache
-configuration remains in `frontend/vercel.json` and `backend/vercel.json`.
+Mathify strictly enforces mathematical authenticity:
+1. **No Inflationary Scoring**: Points cannot be earned by social vanity metrics (likes, comments, profile visits). They reflect strictly verified mathematical problem-solving ability.
+2. **Academic Integrity in AI Tutoring**: The AI Tutor operates under strict constraints to assist derivation methodology rather than solving academic assignments directly.

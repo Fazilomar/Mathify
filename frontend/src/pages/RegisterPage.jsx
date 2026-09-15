@@ -128,6 +128,7 @@ export function RegisterPage() {
 
   return (
     <div
+      className="auth-shell"
       style={{
         minHeight: 'calc(100vh - 120px)',
         display: 'flex',
@@ -148,6 +149,25 @@ export function RegisterPage() {
           border: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
+        <Link
+          to="/"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: 'var(--text-subtle)',
+            fontSize: '13px',
+            textDecoration: 'none',
+            marginBottom: '16px',
+            transition: 'color 0.15s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-subtle)')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          Back to Mathify
+        </Link>
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <h1 className="font-display" style={{ fontSize: '28px', color: 'var(--text)', marginBottom: '6px' }}>
@@ -259,7 +279,7 @@ export function RegisterPage() {
               <label id="role-picker-label" style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
                 Select Your Role
               </label>
-              <div role="radiogroup" aria-labelledby="role-picker-label" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="mobile-form-grid" role="radiogroup" aria-labelledby="role-picker-label" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {/* Student Option */}
                 <div
                   role="radio"
@@ -365,7 +385,7 @@ export function RegisterPage() {
             </div>
 
             {/* Password & Confirm Password */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label htmlFor="reg-password" style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Password
@@ -516,7 +536,7 @@ export function RegisterPage() {
             {/* --- Student Specific Fields --- */}
             {role === 'student' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Department / Major
@@ -573,7 +593,7 @@ export function RegisterPage() {
             {/* --- Host / Organizer / Lecturer Specific Fields --- */}
             {role === 'host' && (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                       Organization / Institution

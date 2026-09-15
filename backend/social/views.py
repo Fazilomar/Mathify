@@ -2,8 +2,8 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Group, GroupMembership, Message, Call, CallSignal
-from .serializers import GroupSerializer, GroupMembershipSerializer, MessageSerializer, CallSerializer
+from .models import Group, GroupMembership, GroupJoinRequest, Message, Call, CallSignal
+from .serializers import GroupSerializer, GroupMembershipSerializer, GroupJoinRequestSerializer, MessageSerializer, CallSerializer
 
 
 def _sync_call_ended(call, user=None):
@@ -18,7 +18,7 @@ def _sync_call_ended(call, user=None):
 
     if call.group:
         group = call.group
-        # Clear active_call on group if it pointed to this call
+        
         if getattr(group, 'active_call_id', None) == call.id:
             group.active_call = None
             group.save(update_fields=['active_call'])
@@ -30,7 +30,7 @@ def _sync_call_ended(call, user=None):
         )
         ended_content = f"[MEETING]:{call.id}:{call.meeting_code}:{call.title}:{initiator_name}:ended:"
 
-        # Find any existing [MEETING] messages for this call ID or meeting_code
+           
         prefix = f"[MEETING]:{call.id}:"
         code_sub = f":{call.meeting_code}:"
         existing_msgs = list(group.messages.filter(
@@ -38,17 +38,17 @@ def _sync_call_ended(call, user=None):
         ).order_by('id'))
 
         if existing_msgs:
-            # Update the latest message to ended
+           
             last_msg = existing_msgs[-1]
             if last_msg.content != ended_content:
                 last_msg.content = ended_content
                 last_msg.save(update_fields=['content'])
-            # Delete any extra duplicate messages created previously for this same meeting
+           
             if len(existing_msgs) > 1:
                 duplicate_ids = [m.id for m in existing_msgs[:-1]]
                 group.messages.filter(id__in=duplicate_ids).delete()
         else:
-            # Create exactly one ended card
+           
             group.messages.create(
                 sender=user if (user and getattr(user, 'is_authenticated', False)) else (call.initiator or None),
                 content=ended_content
@@ -94,6 +94,15 @@ class GroupViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
         group = self.get_object()
+        if group.is_private and not group.memberships.filter(user=request.user).exists():
+            join_request, created = GroupJoinRequest.objects.get_or_create(user=request.user, group=group)
+            if join_request.status == GroupJoinRequest.STATUS_APPROVED:
+                return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not created and join_request.status == GroupJoinRequest.STATUS_PENDING:
+                return Response(GroupJoinRequestSerializer(join_request).data, status=status.HTTP_200_OK)
+            join_request.status = GroupJoinRequest.STATUS_PENDING
+            join_request.save(update_fields=['status', 'updated_at'])
+            return Response(GroupJoinRequestSerializer(join_request).data, status=status.HTTP_201_CREATED)
         membership, created = GroupMembership.objects.get_or_create(
             user=request.user, group=group
         )
@@ -101,18 +110,81 @@ class GroupViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Already a member.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(GroupMembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
 
+    def update(self, request, *args, **kwargs):
+        group = self.get_object()
+        is_creator = group.created_by_id == request.user.id
+        is_admin_member = group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+        if not (is_creator or is_admin_member or request.user.is_staff):
+            return Response({'detail': 'Only the group creator or admin can update room details.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        group = self.get_object()
+        is_creator = group.created_by_id == request.user.id
+        is_admin_member = group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+        if not (is_creator or is_admin_member or request.user.is_staff):
+            return Response({'detail': 'Only the group creator or admin can delete this group.'}, status=status.HTTP_403_FORBIDDEN)
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['post'])
     def leave(self, request, pk=None):
         group = self.get_object()
         GroupMembership.objects.filter(user=request.user, group=group).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        group = self.get_object()
+        if not group.memberships.filter(user=request.user).exists() and group.created_by_id != request.user.id:
+            return Response({'detail': 'Join the group to view its members.'}, status=status.HTTP_403_FORBIDDEN)
+        memberships = group.memberships.select_related('user', 'user__profile').all()
+        return Response(GroupMembershipSerializer(memberships, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def join_requests(self, request, pk=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can manage requests.'}, status=status.HTTP_403_FORBIDDEN)
+        requests = group.join_requests.select_related('user', 'user__profile').filter(status=GroupJoinRequest.STATUS_PENDING)
+        return Response(GroupJoinRequestSerializer(requests, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path=r'join-requests/(?P<request_id>[^/.]+)/approve')
+    def approve_join_request(self, request, pk=None, request_id=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can approve requests.'}, status=status.HTTP_403_FORBIDDEN)
+        join_request = group.join_requests.filter(id=request_id, status=GroupJoinRequest.STATUS_PENDING).first()
+        if not join_request:
+            return Response({'detail': 'Pending request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        GroupMembership.objects.get_or_create(user=join_request.user, group=group)
+        join_request.status = GroupJoinRequest.STATUS_APPROVED
+        join_request.save(update_fields=['status', 'updated_at'])
+        return Response(GroupJoinRequestSerializer(join_request).data)
+
+    @action(detail=True, methods=['post'], url_path=r'join-requests/(?P<request_id>[^/.]+)/decline')
+    def decline_join_request(self, request, pk=None, request_id=None):
+        group = self.get_object()
+        if group.created_by_id != request.user.id:
+            return Response({'detail': 'Only the group creator can decline requests.'}, status=status.HTTP_403_FORBIDDEN)
+        join_request = group.join_requests.filter(id=request_id, status=GroupJoinRequest.STATUS_PENDING).first()
+        if not join_request:
+            return Response({'detail': 'Pending request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        join_request.status = GroupJoinRequest.STATUS_DECLINED
+        join_request.save(update_fields=['status', 'updated_at'])
+        return Response(GroupJoinRequestSerializer(join_request).data)
+
     @action(detail=True, methods=['get', 'post'])
     def messages(self, request, pk=None):
         group = self.get_object()
+        if not group.memberships.filter(user=request.user).exists() and group.created_by_id != getattr(request.user, 'id', None):
+            return Response({'detail': 'Join this group to access its chat.'}, status=status.HTTP_403_FORBIDDEN)
         if request.method == 'POST':
             content = request.data.get('content', '').strip()
-            if not content:
+            media = request.FILES.get('media')
+            if media and media.size > 50 * 1024 * 1024:
+                return Response({'detail': 'Attachments must be 50 MB or smaller.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not content and not media:
                 return Response({'detail': 'Message content cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
             if not request.user.is_authenticated:
                 return Response({'detail': 'Authentication required to post in study groups.'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -122,7 +194,8 @@ class GroupViewSet(viewsets.ModelViewSet):
             msg = Message.objects.create(
                 sender=request.user,
                 group=group,
-                content=content
+                content=content,
+                media=media,
             )
             return Response(MessageSerializer(msg).data, status=status.HTTP_201_CREATED)
 
@@ -352,12 +425,30 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if not self.request.user.is_authenticated:
             return Message.objects.none()
+        from django.db.models import Q
         return Message.objects.filter(
-            sender=self.request.user
-        ) | Message.objects.filter(recipient=self.request.user)
+            Q(sender=self.request.user) |
+            Q(recipient=self.request.user) |
+            Q(group__created_by=self.request.user) |
+            Q(group__memberships__user=self.request.user, group__memberships__role=GroupMembership.ROLE_ADMIN)
+        ).distinct()
 
     def perform_create(self, serializer):
         serializer.save(sender=self.request.user)
+
+    def check_object_permissions(self, request, obj):
+        super().check_object_permissions(request, obj)
+        if request.method not in permissions.SAFE_METHODS:
+            is_sender = obj.sender == request.user
+            is_group_admin = (
+                obj.group and (
+                    obj.group.created_by == request.user or
+                    obj.group.memberships.filter(user=request.user, role=GroupMembership.ROLE_ADMIN).exists()
+                )
+            )
+            if not (is_sender or is_group_admin or request.user.is_staff):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("You can only modify or delete messages you authored, or moderate messages in groups you manage.")
 
     @action(detail=False, methods=['get'])
     def conversations(self, request):
@@ -424,7 +515,7 @@ class CallViewSet(viewsets.ModelViewSet):
         from django.db.models import Q
         user = self.request.user
         return Call.objects.filter(
-            Q(initiator=user) | Q(group__memberships__user=user)
+            Q(initiator=user) | Q(group__memberships__user=user) | Q(participants=user) | Q(status=Call.STATUS_ACTIVE)
         ).distinct()
 
     def perform_create(self, serializer):
@@ -486,5 +577,73 @@ class CallViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def end(self, request, pk=None):
         call = self.get_object()
+        user = request.user
+        is_host = bool(
+            call.initiator_id == user.id or
+            (call.group and (call.group.created_by_id == user.id or call.group.memberships.filter(user=user, role='admin').exists())) or
+            user.is_staff
+        )
+        if not is_host:
+            return Response({'detail': 'Only the host can end the meeting for everyone.'}, status=status.HTTP_403_FORBIDDEN)
         _sync_call_ended(call, request.user)
         return Response(CallSerializer(call).data)
+
+    @action(detail=True, methods=['get'], url_path='token')
+    def token(self, request, pk=None):
+        call = self.get_object()
+        if call.status == Call.STATUS_ENDED:
+            return Response({'detail': 'Call has already ended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from decouple import config
+        livekit_url = config('LIVEKIT_URL', default=None)
+        api_key = config('LIVEKIT_API_KEY', default=None)
+        api_secret = config('LIVEKIT_API_SECRET', default=None)
+
+        if not livekit_url or not api_key or not api_secret:
+            return Response({
+                'fallback_mode': True,
+                'message': 'LiveKit SFU not configured. Operating in WebRTC P2P fallback mode.'
+            })
+
+        try:
+            from livekit import api
+            user = request.user
+            is_host = bool(
+                call.initiator_id == user.id or
+                (call.group and (call.group.created_by_id == user.id or call.group.memberships.filter(user=user, role='admin').exists())) or
+                user.is_staff
+            )
+
+            token = api.AccessToken(api_key, api_secret) \
+                .with_identity(user.username) \
+                .with_name(user.get_full_name() or user.username) \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room=call.meeting_code or f"call-{call.id}",
+                    can_publish=True,
+                    can_subscribe=True,
+                    can_publish_data=True,
+                    room_admin=is_host,
+                ))
+
+            call.participants.add(user)
+            if call.status == Call.STATUS_PENDING:
+                from django.utils import timezone
+                call.status = Call.STATUS_ACTIVE
+                if not call.started_at:
+                    call.started_at = timezone.now()
+                call.save()
+
+            return Response({
+                'token': token.to_jwt(),
+                'server_url': livekit_url,
+                'room_name': call.meeting_code or f"call-{call.id}",
+                'fallback_mode': False,
+                'is_host': is_host,
+            })
+        except Exception as e:
+            return Response({
+                'fallback_mode': True,
+                'error': str(e),
+                'message': 'Error initializing LiveKit token. Reverting to WebRTC P2P fallback mode.'
+            })

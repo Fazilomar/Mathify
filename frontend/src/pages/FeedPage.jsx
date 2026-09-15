@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API } from '../api/client';
+import { API, resolveMediaUrl } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 function formatFileSize(bytes) {
   if (!bytes) return '0 B';
@@ -20,10 +21,19 @@ export function FeedPage() {
   const [content, setContent] = useState('');
   const [latex, setLatex] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [selectedFilePreview, setSelectedFilePreview] = useState('');
+  const [filePreview, setFilePreview] = useState(null);
   const [previewTab, setPreviewTab] = useState('write');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 3500);
+  };
 
   // Active comments drawer
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -109,6 +119,37 @@ export function FeedPage() {
     };
   }, [posts]);
 
+  const handleFileSelect = (file) => {
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+    }
+    if (file) {
+      const isVideo = file.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv|avi|ogv)$/i.test(file.name);
+      if (file.size > 50 * 1024 * 1024) {
+        showToast('Media file is too large (max 50 MB).', 'error');
+        setSelectedFile(null);
+        setFilePreview(null);
+        return;
+      }
+      if (isVideo && file.size > 4.5 * 1024 * 1024) {
+        showToast(`Video selected (${(file.size / (1024 * 1024)).toFixed(1)} MB). Note: Serverless limit is 4.5 MB; compressed or short clips upload most reliably.`);
+      }
+      setSelectedFile(file);
+      setFilePreview(URL.createObjectURL(file));
+    } else {
+      setSelectedFile(null);
+      setFilePreview(null);
+    }
+  };
+
+  const handleClearFile = () => {
+    if (filePreview) {
+      URL.revokeObjectURL(filePreview);
+    }
+    setSelectedFile(null);
+    setFilePreview(null);
+  };
+
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!content.trim() && !latex.trim() && !selectedFile) return;
@@ -118,7 +159,11 @@ export function FeedPage() {
       const formData = new FormData();
       if (content.trim()) formData.append('content', content.trim());
       if (latex.trim()) formData.append('latex_content', latex.trim());
-      if (selectedFile) formData.append('media', selectedFile);
+      if (selectedFile) {
+        formData.append('media', selectedFile);
+        const isVideo = selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv|avi|ogv)$/i.test(selectedFile.name);
+        formData.append('post_type', isVideo ? 'video' : 'image');
+      }
 
       const res = await API.post('/api/feed/posts/', formData);
       if (res.ok) {
@@ -133,11 +178,21 @@ export function FeedPage() {
         setPosts((prev) => [hydratedPost, ...prev]);
         setContent('');
         setLatex('');
-        clearSelectedFile();
+        handleClearFile();
         setPreviewTab('write');
+        showToast('✓ Post published successfully!');
+      } else if (res.status === 413) {
+        showToast('This video exceeds the server upload limit (max 4.5 MB on cloud serverless). Please upload a smaller or compressed clip.', 'error');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        const errMsg = err.media
+          ? (Array.isArray(err.media) ? err.media.join(' ') : String(err.media))
+          : (err.detail || err.content || (typeof err === 'object' && Object.values(err)[0]) || 'Unable to publish post.');
+        showToast(String(errMsg), 'error');
       }
     } catch (err) {
       console.error('Failed to create post:', err);
+      showToast('Network error or file upload timeout. If this is a video, ensure it is under 4.5 MB.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -225,67 +280,77 @@ export function FeedPage() {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm('Are you sure you want to delete this publication? This action cannot be undone.')) {
-      return;
-    }
+  const requestDeletePost = (post) => {
+    setPostToDelete(post);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!postToDelete?.id) return;
+    const postId = postToDelete.id;
     setDeletingId(postId);
     try {
       const res = await API.delete(`/api/feed/posts/${postId}/`);
       if (res.ok || res.status === 204) {
         setPosts((prev) => prev.filter((p) => p.id !== postId));
+        setPostToDelete(null);
+        showToast('Post deleted successfully.', 'success');
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(`Unable to delete publication: ${errData.detail || 'Permission denied'}`);
+        showToast(`Unable to delete post: ${errData.detail || 'Permission denied'}`, 'error');
       }
     } catch (err) {
       console.error('Failed to delete post:', err);
-      alert('Network error attempting to delete publication.');
+      showToast('Network error attempting to delete post.', 'error');
     } finally {
       setDeletingId(null);
     }
   };
 
   const filteredPosts = posts.filter((p) => {
+    const categoryValue = String(p.category?.slug || p.category || p.topic || '').toLowerCase();
+    const categoryMatches = activeCategory === 'all' || !categoryValue || categoryValue.includes(activeCategory);
     if (searchTerm) {
       const authorName = p.author_username || (typeof p.author === 'string' ? p.author : p.author?.username) || '';
       const matchContent = p.content?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchLatex = p.latex_content?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAuthor = authorName.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchContent || matchLatex || matchAuthor;
+      return categoryMatches && (matchContent || matchLatex || matchAuthor);
     }
-    return true;
+    return categoryMatches;
   });
 
   return (
-    <div style={{ maxWidth: '680px', margin: '0 auto', width: '100%' }}>
-      {/* Category Pills */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          paddingBottom: '12px',
-          marginBottom: '16px',
-          scrollbarWidth: 'none',
-        }}
-      >
+    <div className="feed-shell">
+      <section className="feed-hero">
+        <div>
+          <div className="feed-kicker"><span className="material-symbols-outlined">auto_awesome</span> Math Community</div>
+          <h1>Explore, share, and solve math together.</h1>
+          <p>Ask questions, share homework solutions, and learn with students and friends.</p>
+        </div>
+        <div className="feed-hero-mark" aria-hidden="true">∫</div>
+      </section>
+
+      <div className="feed-toolbar">
+        <div className="feed-search-wrap">
+          <span className="material-symbols-outlined">search</span>
+          <input
+            className="feed-search"
+            type="search"
+            placeholder="Search posts, topics, or equations"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && <button className="feed-clear-search" type="button" onClick={() => setSearchTerm('')} aria-label="Clear search">close</button>}
+        </div>
+        <div className="feed-count"><strong>{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'post' : 'posts'}</div>
+      </div>
+
+      <div className="feed-categories" role="tablist" aria-label="Feed categories">
         {categories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            style={{
-              padding: '7px 14px',
-              borderRadius: '999px',
-              fontSize: '13px',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              border: activeCategory === cat.id ? '1px solid var(--primary-border)' : '1px solid var(--border)',
-              backgroundColor: activeCategory === cat.id ? 'var(--primary-subtle)' : 'rgba(255, 255, 255, 0.03)',
-              color: activeCategory === cat.id ? 'var(--primary)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
+            className={`feed-category ${activeCategory === cat.id ? 'is-active' : ''}`}
           >
             {cat.label}
           </button>
@@ -295,7 +360,7 @@ export function FeedPage() {
       {/* Post Composer */}
       {isAuthenticated && (
         <div
-          className="card"
+          className="card feed-composer"
           style={{
             padding: '20px',
             marginBottom: '24px',
@@ -376,53 +441,136 @@ export function FeedPage() {
                     style={{ fontFamily: 'monospace', fontSize: '13px' }}
                   />
 
-                  {/* Bounded media preview */}
+                  {/* Rich Interactive Attachment Preview (Supports both Image & Video per user feedback) */}
                   {selectedFile && (
-                    <div className="feed-upload-preview">
-                      <div className="feed-attachment-row">
-                        <span className="material-symbols-outlined feed-attachment-icon">attach_file</span>
-                        <div className="feed-attachment-details">
-                          <span className="feed-attachment-name" title={selectedFile.name}>{selectedFile.name}</span>
-                          <span className="feed-attachment-size">{formatFileSize(selectedFile.size)}</span>
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        padding: '12px',
+                        background: '#121216',
+                        borderRadius: '10px',
+                        border: '1px solid var(--primary-border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--primary)', flexShrink: 0 }}>
+                            {selectedFile.type?.startsWith('video/') ? 'movie' : 'image'}
+                          </span>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selectedFile.name}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-subtle)', flexShrink: 0 }}>
+                            ({(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
+                          </span>
                         </div>
                         <button
                           type="button"
-                          className="feed-remove-attachment"
-                          onClick={clearSelectedFile}
+                          onClick={handleClearFile}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            color: '#F87171',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11.5px',
+                            flexShrink: 0,
+                          }}
                         >
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
                           Remove
                         </button>
                       </div>
-                      <div className="feed-upload-media">
-                        {selectedFile.type.startsWith('video/') ? (
-                          <video src={selectedFilePreview} controls preload="metadata" />
-                        ) : (
-                          <img src={selectedFilePreview} alt="Selected upload preview" />
-                        )}
-                      </div>
+
+                      {/* Interactive Visual Preview */}
+                      {filePreview && (
+                        <div style={{ borderRadius: '8px', overflow: 'hidden', maxHeight: '240px', backgroundColor: '#0A0A0D', border: '1px solid var(--border)' }}>
+                          {selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(selectedFile.name) ? (
+                            <video
+                              src={filePreview}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              style={{ width: '100%', maxHeight: '240px', display: 'block', backgroundColor: '#000' }}
+                            />
+                          ) : (
+                            <img
+                              src={filePreview}
+                              alt="Attachment preview"
+                              style={{ width: '100%', maxHeight: '240px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  <div className="feed-composer-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                    <label
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        fontSize: '13px',
-                      }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>image</span>
-                      Attach Media
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        style={{ display: 'none' }}
-                        onChange={handleFileChange}
-                      />
-                    </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          fontSize: '12.5px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>image</span>
+                        <span>Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+
+                      <label
+                        title="Upload short video clip (MP4, MOV, WebM - max 4.5 MB)"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted)',
+                          fontSize: '12.5px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                          border: '1px solid var(--border)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--primary)' }}>videocam</span>
+                        <span>Video</span>
+                        <input
+                          type="file"
+                          accept="video/*,video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
 
                     <button
                       type="submit"
@@ -499,11 +647,11 @@ export function FeedPage() {
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span>
-              <span>{newPostsAvailable} new preprint{newPostsAvailable > 1 ? 's' : ''} published &bull; Click to update feed</span>
+              <span>{newPostsAvailable} new post{newPostsAvailable > 1 ? 's' : ''} &bull; Click to update feed</span>
             </button>
           )}
           {filteredPosts.map((post) => {
-            const authorDisplay = post.author_username || (typeof post.author === 'string' ? post.author : post.author?.username) || 'Mathematician';
+            const authorDisplay = post.author_username || (typeof post.author === 'string' ? post.author : post.author?.username) || 'Scholar';
             const currentUserId = API.getCurrentUserId() || user?.id;
             const isAuthor = Boolean(
               currentUserId && (
@@ -513,7 +661,7 @@ export function FeedPage() {
             );
 
             return (
-              <article key={post.id} className="glass-card" style={{ padding: '20px' }}>
+              <article key={post.id} className="glass-card feed-post" style={{ padding: '20px' }}>
                 {/* Post Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -534,7 +682,7 @@ export function FeedPage() {
                       }}
                     >
                       {post.author_avatar ? (
-                        <img src={post.author_avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={resolveMediaUrl(post.author_avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         authorDisplay?.[0]?.toUpperCase() || 'M'
                       )}
@@ -552,9 +700,9 @@ export function FeedPage() {
                   {/* Delete Button for Post Author */}
                   {isAuthor && (
                     <button
-                      onClick={() => handleDeletePost(post.id)}
+                      onClick={() => requestDeletePost(post)}
                       disabled={deletingId === post.id}
-                      title="Delete publication"
+                      title="Delete post"
                       style={{
                         background: 'transparent',
                         border: '1px solid transparent',
@@ -590,11 +738,11 @@ export function FeedPage() {
                   )}
                 </div>
 
-                {/* Post Body */}
+                {/* Post Body with Inline LaTeX Rendering */}
                 {post.content && (
-                  <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
-                    {post.content}
-                  </p>
+                  <div style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, marginBottom: '12px' }}>
+                    <MathRenderer content={post.content} />
+                  </div>
                 )}
 
               {/* LaTeX Formula */}
@@ -608,11 +756,22 @@ export function FeedPage() {
 
               {/* Media Attachment */}
               {post.media && (
-                <div className="feed-media-attachment" style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
-                  {/\.(mp4|webm|ogg)$/i.test(post.media) ? (
-                    <video src={post.media} controls style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '420px', display: 'block' }} />
+                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '480px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border)' }}>
+                  {post.post_type === 'video' || /\.(mp4|webm|ogg|mov|m4v|3gp)$/i.test(post.media) ? (
+                    <video
+                      src={resolveMediaUrl(post.media)}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      style={{ width: '100%', maxHeight: '480px', display: 'block', backgroundColor: '#000' }}
+                    />
                   ) : (
-                    <img src={post.media} alt="Post attachment" style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
+                    <img
+                      src={resolveMediaUrl(post.media)}
+                      alt="Post attachment"
+                      style={{ width: '100%', maxHeight: '480px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                      loading="lazy"
+                    />
                   )}
                 </div>
               )}
@@ -738,6 +897,53 @@ export function FeedPage() {
           })}
         </div>
       )}
+
+      {/* Toast Notification Banner */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            zIndex: 99999,
+            backgroundColor: '#1E1E26',
+            color: toast.type === 'error' ? '#F87171' : 'var(--primary, #E5A93C)',
+            border: `1px solid ${toast.type === 'error' ? 'rgba(239, 68, 68, 0.35)' : 'var(--primary-border, rgba(229, 169, 60, 0.35))'}`,
+            padding: '12px 18px',
+            borderRadius: '12px',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.65), 0 0 20px rgba(0, 0, 0, 0.4)',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            animation: 'fadeInScale 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+            maxWidth: '90vw',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+            {toast.type === 'error' ? 'error' : 'check_circle'}
+          </span>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(postToDelete)}
+        onClose={() => {
+          if (!deletingId) setPostToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Post"
+        message="Are you sure you want to delete this post? This action cannot be undone."
+        confirmText="Delete Post"
+        cancelText="Keep Post"
+        variant="danger"
+        isLoading={Boolean(deletingId)}
+      />
     </div>
   );
 }

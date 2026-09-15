@@ -81,7 +81,7 @@ export function Navbar() {
           const items = data.results || (Array.isArray(data) ? data : []);
           setNotificationsList(items);
         }
-      } catch {}
+      } catch { }
     }
   };
 
@@ -90,7 +90,7 @@ export function Navbar() {
       await API.post('/api/notifications/read-all/', {});
       setUnreadCount(0);
       setNotificationsList((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch {}
+    } catch { }
   };
 
   const navLinks = [
@@ -235,6 +235,7 @@ export function Navbar() {
               {/* Notification Popover Dropdown */}
               {showNotifMenu && (
                 <div
+                  className="notification-popover"
                   style={{
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
@@ -495,7 +496,6 @@ export function Navbar() {
       {showMobileDrawer &&
         createPortal(
           <div
-            className="mobile-drawer-overlay"
             style={{
               position: 'fixed',
               inset: 0,
@@ -510,6 +510,7 @@ export function Navbar() {
             onClick={() => setShowMobileDrawer(false)}
           >
             <div
+              className="mobile-drawer-panel"
               style={{
                 width: '300px',
                 maxWidth: '85vw',
@@ -518,7 +519,7 @@ export function Navbar() {
                 borderLeft: '1px solid var(--border)',
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '20px',
+                padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
                 boxShadow: '-10px 0 30px rgba(0,0,0,0.8)',
                 overflowY: 'auto',
                 animation: 'drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',

@@ -24,12 +24,15 @@ class ResourceViewSet(viewsets.ModelViewSet):
         qs = Resource.objects.select_related('category', 'uploaded_by').prefetch_related('tags', 'bookmarks')
         resource_type = self.request.query_params.get('type')
         category = self.request.query_params.get('category')
+        level = self.request.query_params.get('level')
         bookmarked = self.request.query_params.get('bookmarked')
         
         if resource_type:
             qs = qs.filter(resource_type=resource_type)
         if category:
             qs = qs.filter(category__slug=category)
+        if level:
+            qs = qs.filter(level=level)
         if bookmarked == 'true' and self.request.user.is_authenticated:
             qs = qs.filter(bookmarks__user=self.request.user)
         

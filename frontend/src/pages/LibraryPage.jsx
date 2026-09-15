@@ -6,13 +6,49 @@ export function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedLevel, setSelectedLevel] = useState('all');
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newType, setNewType] = useState('textbook');
+  const [newLevel, setNewLevel] = useState('general');
   const [newUrl, setNewUrl] = useState('');
+  const [newFile, setNewFile] = useState(null);
   const [publishing, setPublishing] = useState(false);
+
+  const levels = [
+    { id: 'all', label: 'All Levels' },
+    { id: '100', label: '100L' },
+    { id: '200', label: '200L' },
+    { id: '300', label: '300L' },
+    { id: '400', label: '400L' },
+    { id: '500', label: '500L' },
+    { id: 'general', label: 'General / Ref' },
+  ];
+
+  const getLevelBadgeStyle = (lvl) => {
+    switch (lvl) {
+      case '100':
+        return { bg: 'rgba(59, 130, 246, 0.15)', border: 'rgba(59, 130, 246, 0.4)', color: '#60a5fa', text: '100L' };
+      case '200':
+        return { bg: 'rgba(168, 85, 247, 0.15)', border: 'rgba(168, 85, 247, 0.4)', color: '#c084fc', text: '200L' };
+      case '300':
+        return { bg: 'rgba(234, 179, 8, 0.15)', border: 'rgba(234, 179, 8, 0.4)', color: '#facc15', text: '300L' };
+      case '400':
+        return { bg: 'rgba(16, 185, 129, 0.15)', border: 'rgba(16, 185, 129, 0.4)', color: '#34d399', text: '400L' };
+      case '500':
+        return { bg: 'rgba(244, 63, 94, 0.15)', border: 'rgba(244, 63, 94, 0.4)', color: '#fb7185', text: '500L' };
+      default:
+        return { bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)', color: '#cbd5e1', text: 'General' };
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return null;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const categories = [
     { id: 'all', label: 'All Disciplines' },
@@ -24,6 +60,9 @@ export function LibraryPage() {
     { id: 'Abstract Algebra', label: 'Abstract Algebra' },
     { id: 'Number Theory', label: 'Number Theory' },
     { id: 'Foundations', label: 'Foundations' },
+    { id: 'Pure Mathematics', label: 'Pure Mathematics' },
+    { id: 'Applied Mathematics', label: 'Applied Mathematics' },
+    { id: 'Statistics & Probability', label: 'Statistics & Probability' },
   ];
 
   const fetchResources = async () => {
@@ -54,12 +93,14 @@ export function LibraryPage() {
     if (!newTitle.trim()) return;
     setPublishing(true);
     try {
-      const res = await API.post('/api/library/resources/', {
-        title: newTitle.trim(),
-        description: newDesc.trim(),
-        resource_type: newType,
-        url: newUrl.trim(),
-      });
+      const formData = new FormData();
+      formData.append('title', newTitle.trim());
+      formData.append('description', newDesc.trim());
+      formData.append('resource_type', newType);
+      formData.append('level', newLevel);
+      if (newUrl.trim()) formData.append('url', newUrl.trim());
+      if (newFile) formData.append('file', newFile);
+      const res = await API.post('/api/library/resources/', formData);
       if (res.ok) {
         const saved = await res.json();
         setResources((prev) => [saved, ...prev]);
@@ -67,6 +108,8 @@ export function LibraryPage() {
         setNewTitle('');
         setNewDesc('');
         setNewUrl('');
+        setNewFile(null);
+        setNewLevel('general');
       } else {
         const err = await res.json().catch(() => ({}));
         alert(err.detail || 'Could not publish manuscript. Please ensure you are logged in.');
@@ -108,10 +151,16 @@ export function LibraryPage() {
       selectedCategory === 'all' ||
       (rCategory && rCategory.toLowerCase() === selectedCategory.toLowerCase());
 
-    if (!searchTerm.trim()) return matchesCategory;
+    const matchesLevel =
+      selectedLevel === 'all' ||
+      (r.level && r.level.toString() === selectedLevel) ||
+      (!r.level && selectedLevel === 'general');
+
+    if (!searchTerm.trim()) return matchesCategory && matchesLevel;
     const q = searchTerm.toLowerCase();
     return (
       matchesCategory &&
+      matchesLevel &&
       (r.title?.toLowerCase().includes(q) ||
         r.uploaded_by?.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q))
@@ -132,13 +181,13 @@ export function LibraryPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="badge-academic" style={{ marginBottom: '10px' }}>
-              Mathematical Manuscript Archives
+              Study Materials & Library
             </div>
             <h1 style={{ fontSize: '26px', margin: '0 0 8px', fontWeight: 700 }}>
-              Academic Library & Research Preprints
+              Textbooks, Notes & Problem Sets
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '14.5px', maxWidth: '640px', margin: 0, lineHeight: 1.55 }}>
-              Access community preprints, lecture monographs, problem sets, and formal mathematical papers in real time.
+              Read and download textbooks, lecture notes, formula sheets, and past question papers.
             </p>
           </div>
 
@@ -150,14 +199,14 @@ export function LibraryPage() {
               style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px' }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-              Publish Manuscript
+              Upload Material
             </button>
             <div style={{ width: '1px', height: '32px', backgroundColor: 'var(--border)' }} />
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--primary)' }}>
                 {resources.length}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Catalogued Works</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Study Materials</div>
             </div>
           </div>
         </div>
@@ -196,15 +245,81 @@ export function LibraryPage() {
           </div>
         </div>
 
+        {/* Level Filter Pills */}
+        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--primary)' }}>school</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Filter by Level:
+            </span>
+          </div>
+          <div
+            className="manuscript-grid"
+            style={{
+              display: 'flex',
+              gap: '8px',
+              overflowX: 'auto',
+              paddingBottom: '4px',
+              scrollbarWidth: 'none',
+            }}
+          >
+            {levels.map((lvl) => {
+              const isActive = selectedLevel === lvl.id;
+              const badge = getLevelBadgeStyle(lvl.id);
+              return (
+                <button
+                  key={lvl.id}
+                  onClick={() => setSelectedLevel(lvl.id)}
+                  style={{
+                    padding: '5px 14px',
+                    borderRadius: '6px',
+                    border: isActive
+                      ? `1px solid ${lvl.id === 'all' ? 'var(--primary)' : badge.color}`
+                      : '1px solid var(--border)',
+                    backgroundColor: isActive
+                      ? (lvl.id === 'all' ? 'var(--primary-subtle)' : badge.bg)
+                      : 'transparent',
+                    color: isActive
+                      ? (lvl.id === 'all' ? 'var(--primary)' : badge.color)
+                      : 'var(--text-muted)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  {lvl.id !== 'all' && (
+                    <span
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        backgroundColor: badge.color,
+                        display: 'inline-block',
+                      }}
+                    />
+                  )}
+                  {lvl.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Category Filter Pills */}
         <div
+          className="manuscript-grid"
           style={{
             display: 'flex',
             gap: '8px',
             overflowX: 'auto',
-            paddingTop: '16px',
+            paddingTop: '12px',
             marginTop: '8px',
-            borderTop: '1px solid var(--border)',
+            borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
             scrollbarWidth: 'none',
           }}
         >
@@ -285,20 +400,38 @@ export function LibraryPage() {
             >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <span
-                    style={{
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      color: 'var(--primary)',
-                      backgroundColor: 'var(--primary-subtle)',
-                      padding: '3px 9px',
-                      borderRadius: '4px',
-                      border: '1px solid var(--primary-border)',
-                      textTransform: 'capitalize',
-                    }}
-                  >
-                    {typeof item.category === 'object' ? item.category?.name || 'Pure Mathematics' : item.resource_type || 'Monograph'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        color: 'var(--primary)',
+                        backgroundColor: 'var(--primary-subtle)',
+                        padding: '3px 9px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--primary-border)',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {typeof item.category === 'object' ? item.category?.name || 'Pure Mathematics' : item.resource_type || 'Monograph'}
+                    </span>
+                    {item.level && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: getLevelBadgeStyle(item.level).color,
+                          backgroundColor: getLevelBadgeStyle(item.level).bg,
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          border: `1px solid ${getLevelBadgeStyle(item.level).border}`,
+                          letterSpacing: '0.4px',
+                        }}
+                      >
+                        {getLevelBadgeStyle(item.level).text}
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={() => handleToggleBookmark(item.id)}
                     style={{
@@ -324,13 +457,21 @@ export function LibraryPage() {
                   {item.title}
                 </h3>
 
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--text-subtle)' }}>person</span>
                   <span>{item.uploaded_by || 'Author'}</span>
                   <span style={{ color: 'var(--text-subtle)' }}>&bull;</span>
                   <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>
                     {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
                   </span>
+                  {item.file_size_bytes && (
+                    <>
+                      <span style={{ color: 'var(--text-subtle)' }}>&bull;</span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--primary)', fontWeight: 500 }}>
+                        {formatFileSize(item.file_size_bytes)}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {item.description && (
@@ -352,7 +493,7 @@ export function LibraryPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-subtle)' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>menu_book</span>
-                  <span style={{ textTransform: 'capitalize' }}>{item.resource_type || 'Textbook'}</span>
+                  <span style={{ textTransform: 'capitalize' }}>{item.resource_type?.replace('_', ' ') || 'Textbook'}</span>
                 </div>
 
                 {item.url ? (
@@ -363,7 +504,7 @@ export function LibraryPage() {
                     className="btn-primary"
                     style={{ padding: '6px 14px', fontSize: '12.5px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
-                    <span>Open Manuscript</span>
+                    <span>Open Link</span>
                     <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>open_in_new</span>
                   </a>
                 ) : item.file ? (
@@ -378,7 +519,7 @@ export function LibraryPage() {
                     <span>Download PDF</span>
                   </a>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Archived Entry</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Saved Entry</span>
                 )}
               </div>
             </article>
@@ -386,7 +527,7 @@ export function LibraryPage() {
         </div>
       )}
 
-      {/* Publish Manuscript Modal */}
+      {/* Upload Material Modal */}
       {showPublishModal && (
         <div
           style={{
@@ -418,10 +559,10 @@ export function LibraryPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0, color: 'var(--text)' }}>
-                  Publish Academic Manuscript
+                  Upload Study Material
                 </h2>
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                  Contribute notes, papers, or problem sets to the live mathematical repository.
+                  Upload textbooks, lecture notes, or problem sets to share with other students.
                 </p>
               </div>
               <button
@@ -448,7 +589,7 @@ export function LibraryPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                     Resource Type
@@ -468,26 +609,58 @@ export function LibraryPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    External URL / Preprint Link
+                    Academic Level
+                  </label>
+                  <select
+                    className="glass-input"
+                    value={newLevel}
+                    onChange={(e) => setNewLevel(e.target.value)}
+                    style={{ width: '100%', padding: '10px 14px', fontSize: '13.5px', backgroundColor: '#1A1A22' }}
+                  >
+                    <option value="100">100 Level</option>
+                    <option value="200">200 Level</option>
+                    <option value="300">300 Level</option>
+                    <option value="400">400 Level</option>
+                    <option value="500">500 Level</option>
+                    <option value="general">General / Reference</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    External Link / PDF URL
                   </label>
                   <input
                     type="url"
-                    placeholder="https://arxiv.org/..."
+                    placeholder="https://..."
                     className="glass-input"
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
                     style={{ width: '100%', padding: '10px 14px', fontSize: '13.5px' }}
                   />
                 </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    Upload file from device
+                  </label>
+                  <label className="library-file-picker">
+                    <span className="material-symbols-outlined">upload_file</span>
+                    <span>{newFile ? newFile.name : 'Choose a file'}</span>
+                    <input
+                      type="file"
+                      onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                      hidden
+                    />
+                  </label>
+                </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  Abstract / Overview
+                  Description / Overview
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Provide an executive mathematical summary or prerequisites..."
+                  placeholder="Provide a short description of what this material covers..."
                   className="glass-input"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
@@ -510,7 +683,7 @@ export function LibraryPage() {
                   className="btn-primary"
                   style={{ padding: '9px 20px', fontSize: '13.5px' }}
                 >
-                  {publishing ? 'Publishing...' : 'Publish to Repository'}
+                  {publishing ? 'Uploading...' : 'Upload Material'}
                 </button>
               </div>
             </form>

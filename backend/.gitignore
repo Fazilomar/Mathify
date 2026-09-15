@@ -13,3 +13,5 @@ migrations/
 db.sqlite3
 backend/staticfiles/
 media/
+*.session
+*.session-journal

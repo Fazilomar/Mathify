@@ -21,8 +21,17 @@ class CustomUser(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
+    def get_public_name(self):
+        """Returns a safe display name that never reveals the user's private email address."""
+        u = (self.username or '').strip()
+        if u and '@' not in u:
+            return u
+        if self.email and '@' in self.email:
+            return self.email.split('@')[0]
+        return f"user_{self.pk or 'anonymous'}"
+
     def __str__(self):
-        return self.email
+        return self.get_public_name()
 
 
 class Profile(models.Model):

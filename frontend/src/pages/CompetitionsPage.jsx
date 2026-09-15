@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
+import ConfirmModal from '../components/common/ConfirmModal';
 
 export function CompetitionsPage() {
   const { user, isAuthenticated, fetchProfile } = useAuth();
@@ -14,6 +15,7 @@ export function CompetitionsPage() {
   // Answering state: { [questionId]: { answerText: '', submitting: false, feedback: null } }
   const [answersState, setAnswersState] = useState({});
   const [registering, setRegistering] = useState(false);
+  const [registerModal, setRegisterModal] = useState(null);
 
   // Host Competition Modal State
   const [showHostModal, setShowHostModal] = useState(false);
@@ -103,22 +105,7 @@ export function CompetitionsPage() {
     }));
   };
 
-  const handleSubmitAnswer = async (e, compId, qId) => {
-    e.preventDefault();
-    if (!isAuthenticated) {
-      alert('Please sign in to submit competition solutions and earn Axiom Points.');
-      return;
-    }
-
-    if (!isHost && activeCompetition && !activeCompetition.is_registered) {
-      const confirmReg = window.confirm('You must register for this competition sprint before submitting solutions. Would you like to register now?');
-      if (confirmReg) {
-        await handleRegisterCompetition(compId);
-      } else {
-        return;
-      }
-    }
-
+  const executeSubmitAnswer = async (compId, qId) => {
     const state = answersState[qId] || {};
     const text = (state.answerText || '').trim();
     if (!text) return;
@@ -202,6 +189,31 @@ export function CompetitionsPage() {
           },
         },
       }));
+    }
+  };
+
+  const handleSubmitAnswer = async (e, compId, qId) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      alert('Please sign in to submit competition solutions and earn Axiom Points.');
+      return;
+    }
+
+    if (!isHost && activeCompetition && !activeCompetition.is_registered) {
+      setRegisterModal({ compId, qId });
+      return;
+    }
+
+    executeSubmitAnswer(compId, qId);
+  };
+
+  const handleConfirmRegisterModal = async () => {
+    if (!registerModal) return;
+    const { compId, qId } = registerModal;
+    await handleRegisterCompetition(compId);
+    setRegisterModal(null);
+    if (qId) {
+      executeSubmitAnswer(compId, qId);
     }
   };
 
@@ -314,7 +326,7 @@ export function CompetitionsPage() {
           backgroundColor: '#16161B',
         }}
       >
-          <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="badge-academic" style={{ marginBottom: '10px' }}>
               Academic Mathematical Sprints
@@ -482,7 +494,7 @@ export function CompetitionsPage() {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-subtle)' }}>
-                      <span>Host: {c.created_by || 'Organizer'}</span>
+                      <span>Host: {(c.created_by || 'Organizer').split('@')[0]}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', fontWeight: 600 }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>quiz</span>
                         {qCount} question{qCount !== 1 ? 's' : ''}
@@ -874,7 +886,7 @@ export function CompetitionsPage() {
                         style={{ width: '100%', fontSize: '13px', resize: 'vertical' }}
                       />
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
+                      <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
                         <input
                           type="text"
                           placeholder="Correct Answer (e.g. 1/3)"
@@ -982,7 +994,7 @@ export function CompetitionsPage() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
+              <div className="mobile-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
                     Correct Answer *
@@ -1034,6 +1046,20 @@ export function CompetitionsPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Registration Confirmation Modal */}
+      {registerModal && (
+        <ConfirmModal
+          isOpen={Boolean(registerModal)}
+          onClose={() => setRegisterModal(null)}
+          onConfirm={handleConfirmRegisterModal}
+          title="Register for Competition Sprint"
+          message={`You must register for "${activeCompetition?.title || 'this sprint'}" before submitting solutions and earning Axiom Points. Would you like to register now?`}
+          confirmText="Register & Submit"
+          cancelText="Cancel"
+          variant="info"
+          isLoading={registering}
+        />
       )}
     </div>
   );

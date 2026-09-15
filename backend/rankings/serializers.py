@@ -4,6 +4,20 @@ from datetime import timedelta
 from .models import Badge, UserBadge, Competition, Score, CompetitionQuestion, QuestionSubmission
 
 
+def _safe_user_name(user, fallback='Scholar'):
+    if not user:
+        return fallback
+    if hasattr(user, 'get_public_name'):
+        return user.get_public_name()
+    u = (getattr(user, 'username', '') or '').strip()
+    if u and '@' not in u:
+        return u
+    email = getattr(user, 'email', '') or ''
+    if email and '@' in email:
+        return email.split('@')[0]
+    return f"user_{getattr(user, 'id', 'anonymous')}"
+
+
 class BadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Badge
@@ -12,11 +26,14 @@ class BadgeSerializer(serializers.ModelSerializer):
 
 class UserBadgeSerializer(serializers.ModelSerializer):
     badge = BadgeSerializer(read_only=True)
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = UserBadge
         fields = ['id', 'user', 'badge', 'awarded_at']
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
 
 
 class CompetitionQuestionSerializer(serializers.ModelSerializer):
@@ -43,7 +60,7 @@ class CompetitionQuestionSerializer(serializers.ModelSerializer):
 
 
 class CompetitionSerializer(serializers.ModelSerializer):
-    created_by = serializers.StringRelatedField(read_only=True)
+    created_by = serializers.SerializerMethodField()
     questions = CompetitionQuestionSerializer(many=True, read_only=True)
     questions_count = serializers.SerializerMethodField()
     participants_count = serializers.SerializerMethodField()
@@ -70,6 +87,9 @@ class CompetitionSerializer(serializers.ModelSerializer):
             'participants_count', 'is_registered', 'created_at'
         ]
 
+    def get_created_by(self, obj):
+        return _safe_user_name(obj.created_by, fallback='Organizer')
+
     def get_questions_count(self, obj):
         return obj.questions.count()
 
@@ -84,13 +104,16 @@ class CompetitionSerializer(serializers.ModelSerializer):
 
 
 class ScoreSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    user = serializers.SerializerMethodField()
     competition = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Score
         fields = ['id', 'user', 'competition', 'points', 'period', 'updated_at']
         read_only_fields = ['id', 'user', 'updated_at']
+
+    def get_user(self, obj):
+        return _safe_user_name(obj.user)
 
 
 class LeaderboardEntrySerializer(serializers.Serializer):
