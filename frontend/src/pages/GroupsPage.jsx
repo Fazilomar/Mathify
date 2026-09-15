@@ -954,9 +954,9 @@ export function GroupsPage() {
                   )}
 
                   {/* Group Name & Members Preview */}
-                  <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ minWidth: 0, overflow: 'hidden', flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
-                      <h2 style={{ fontSize: '16.5px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <h2 style={{ fontSize: '16px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {activeGroup.name}
                       </h2>
                       <span className="badge-academic desktop-only-text" style={{ fontSize: '10.5px', padding: '1px 7px', textTransform: 'capitalize', flexShrink: 0 }}>
@@ -966,16 +966,6 @@ export function GroupsPage() {
                         <span title="Private room" style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--text-subtle)', flexShrink: 0 }}>
                           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>lock</span>
                         </span>
-                      )}
-                      {!isGroupMember && (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={handleJoinGroup}
-                          style={{ padding: '2px 9px', fontSize: '11px', fontWeight: 600, borderRadius: '4px', flexShrink: 0 }}
-                        >
-                          {activeGroup.request_status === 'pending' ? 'Pending' : activeGroup.is_private ? 'Request' : 'Join'}
-                        </button>
                       )}
                     </div>
 
@@ -1047,91 +1037,105 @@ export function GroupsPage() {
                   </div>
                 </div>
 
-                {/* Right Side: Start Meeting + Three-Dots Menu */}
+                {/* Right Side: Meeting button (for members) OR Join/Request button (for non-members) + Three-Dots Menu */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  {/* Start Meeting Split Button */}
-                  <div ref={meetingDropdownRef} style={{ position: 'relative' }}>
-                    <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden' }}>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '7px 12px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                        onClick={openStartInstantModal}
-                        title="Start Instant Seminar Meeting"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
-                        <span className="desktop-only-text">Start Meeting</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ padding: '7px 7px', fontSize: '12.5px', borderLeft: '1px solid rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
-                        onClick={() => setMeetingDropdownOpen((prev) => !prev)}
-                        title="Meeting options"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_drop_down</span>
-                      </button>
-                    </div>
-
-                    {meetingDropdownOpen && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: 'calc(100% + 6px)',
-                          backgroundColor: '#1E1E26',
-                          border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6)',
-                          zIndex: 60,
-                          minWidth: '190px',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
-                          onClick={() => {
-                            setMeetingDropdownOpen(false);
-                            openStartInstantModal();
-                          }}
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: '12.5px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  {!isGroupMember ? (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleJoinGroup}
+                      style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        {activeGroup.request_status === 'pending' ? 'hourglass_top' : activeGroup.is_private ? 'lock_open' : 'group_add'}
+                      </span>
+                      <span>{activeGroup.request_status === 'pending' ? 'Pending' : activeGroup.is_private ? 'Request' : 'Join'}</span>
+                    </button>
+                  ) : (
+                    /* Start Meeting Split Button for Members */
+                    <div ref={meetingDropdownRef} style={{ position: 'relative' }}>
+                      <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          className="btn-primary groups-meeting-btn"
+                          style={{ padding: '7px 12px', fontSize: '12.5px', borderTopRightRadius: 0, borderBottomRightRadius: 0, display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                          onClick={openStartInstantModal}
+                          title="Start Instant Seminar Meeting"
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>videocam</span>
-                          <span>Start Instant Meeting</span>
-                        </div>
-                        <div
-                          onClick={() => {
-                            setMeetingDropdownOpen(false);
-                            setShowScheduleModal(true);
-                          }}
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: '12.5px',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>videocam</span>
+                          <span className="desktop-only-text">Start Meeting</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary groups-meeting-split-arrow"
+                          style={{ padding: '7px 7px', fontSize: '12.5px', borderLeft: '1px solid rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                          onClick={() => setMeetingDropdownOpen((prev) => !prev)}
+                          title="Meeting options"
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#60A5FA' }}>calendar_month</span>
-                          <span>Schedule Seminar</span>
-                        </div>
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_drop_down</span>
+                        </button>
                       </div>
-                    )}
-                  </div>
+
+                      {meetingDropdownOpen && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 'calc(100% + 6px)',
+                            backgroundColor: '#1E1E26',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.6)',
+                            zIndex: 60,
+                            minWidth: '190px',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            onClick={() => {
+                              setMeetingDropdownOpen(false);
+                              openStartInstantModal();
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              fontSize: '12.5px',
+                              color: 'var(--text)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '17px', color: 'var(--primary)' }}>videocam</span>
+                            <span>Start Instant Meeting</span>
+                          </div>
+                          <div
+                            onClick={() => {
+                              setMeetingDropdownOpen(false);
+                              setShowScheduleModal(true);
+                            }}
+                            style={{
+                              padding: '10px 14px',
+                              fontSize: '12.5px',
+                              color: 'var(--text)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(229, 169, 60, 0.1)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '17px', color: '#60A5FA' }}>calendar_month</span>
+                            <span>Schedule Seminar</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Three-Dots Menu (Whiteboard, Members, Requests, Exit, Delete) */}
                   <div ref={optionsMenuRef} style={{ position: 'relative' }}>
@@ -1366,7 +1370,7 @@ export function GroupsPage() {
                       No messages yet in #{activeGroup.name}
                     </p>
                     <p style={{ fontSize: '12.5px', color: 'var(--text-subtle)' }}>
-                      Start the seminar discussion by sharing a lemma, question, or proof step below.
+                      Say hello or share a math question to start the conversation!
                     </p>
                   </div>
                 ) : (

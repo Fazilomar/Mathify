@@ -1358,11 +1358,20 @@ button, input, textarea, select {
     font-size: 15px !important;
   }
 
+  .groups-meeting-split-arrow {
+    display: none !important;
+  }
+
+  .groups-meeting-btn {
+    border-radius: 6px !important;
+    padding: 7px 10px !important;
+  }
+
   .groups-page-main {
     padding-top: 0 !important;
-    padding-bottom: var(--bottom-nav-height) !important;
-    height: calc(100dvh - var(--nav-height)) !important;
-    min-height: calc(100dvh - var(--nav-height)) !important;
+    padding-bottom: 0 !important;
+    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
+    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
     overflow: hidden !important;
   }
 
@@ -1478,9 +1487,9 @@ button, input, textarea, select {
   /* AI Tutor: Uncluttered fluid layout, full-viewport breathing room */
   .full-height-main {
     padding-top: 0 !important;
-    padding-bottom: var(--bottom-nav-height) !important;
-    min-height: calc(100dvh - var(--nav-height)) !important;
-    height: calc(100dvh - var(--nav-height)) !important;
+    padding-bottom: 0 !important;
+    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
+    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
     overflow: hidden !important;
   }
 
