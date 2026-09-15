@@ -59,6 +59,8 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+          cd ..
+          python scripts/configure_android_deep_link.py
 
       - name: Build debug APK
         run: cd android && ./gradlew --no-daemon --stacktrace assembleDebug

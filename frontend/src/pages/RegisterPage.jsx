@@ -2,14 +2,19 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../api/client';
+import { startOAuth } from '../utils/oauth';
 
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const googleOAuthUrl = `${API_BASE}/api/accounts/oauth/google/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
-  const microsoftOAuthUrl = `${API_BASE}/api/accounts/oauth/microsoft/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
+  const handleOAuth = (provider) => {
+    setError('');
+    startOAuth(provider, API_BASE, frontendOrigin).catch(() => {
+      setError('Unable to open the sign-in provider. Please try again.');
+    });
+  };
 
   // Step state: 1 = Account Credentials, 2 = Role-Specific Profile
   const [step, setStep] = useState(1);
@@ -697,8 +702,9 @@ export function RegisterPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <a
-                href={googleOAuthUrl}
+                <a
+                  href="/register"
+                  onClick={(event) => { event.preventDefault(); handleOAuth('google'); }}
                 className="btn-secondary"
                 style={{
                   display: 'flex',
@@ -725,8 +731,9 @@ export function RegisterPage() {
                 <span>Continue with Google</span>
               </a>
 
-              <a
-                href={microsoftOAuthUrl}
+                <a
+                  href="/register"
+                  onClick={(event) => { event.preventDefault(); handleOAuth('microsoft'); }}
                 className="btn-secondary"
                 style={{
                   display: 'flex',
