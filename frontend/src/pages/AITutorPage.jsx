@@ -9,9 +9,11 @@ export function AITutorPage() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const starterPrompts = [
     { title: "Euler's Identity", prompt: "Explain Euler's identity e^{iπ} + 1 = 0 and its geometric meaning on the unit circle." },
@@ -81,12 +83,49 @@ export function AITutorPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const ensureActiveSession = async (text) => {
+    if (activeSessionId) return activeSessionId;
+    const res = await API.post('/api/ai-tutor/sessions/', {
+      title: text.slice(0, 35) || 'Research Session',
+    });
+    if (!res.ok) throw new Error('Could not start an AI Tutor session.');
+    const session = await res.json();
+    setSessions((prev) => [session, ...prev]);
+    setActiveSessionId(session.id);
+    return session.id;
+  };
+
   const handleSendMessage = async (msgText = inputMessage) => {
     const text = typeof msgText === 'string' ? msgText.trim() : inputMessage.trim();
-    if (!text || sending) return;
+    if ((!text && !selectedFile) || sending) return;
+
+    const file = selectedFile;
+    const displayText = text || `Please analyze the attached file: ${file.name}`;
+    let sessionId;
+    try {
+      sessionId = await ensureActiveSession(displayText);
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: Date.now(), role: 'assistant', content: `⚠️ ${err.message}` }]);
+      return;
+    }
 
     setInputMessage('');
-    const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() };
+    setSelectedFile(null);
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      content: displayText,
+      file_name: file?.name,
+      file_mime: file?.type,
+      created_at: new Date().toISOString(),
+    };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
 
@@ -104,13 +143,17 @@ export function AITutorPage() {
     ]);
 
     try {
-      const res = await API.req('/api/ai-tutor/chat/?stream=true', {
+      const payload = {
+        content: displayText,
+        ...(file ? {
+          file_data: await fileToBase64(file),
+          file_name: file.name,
+          file_mime: file.type,
+        } : {}),
+      };
+      const res = await API.req(`/api/ai-tutor/sessions/${sessionId}/send-stream/`, {
         method: 'POST',
-        body: JSON.stringify({
-          message: text,
-          session_id: activeSessionId,
-          stream: true,
-        }),
+        body: JSON.stringify(payload),
         headers: {
           'Accept': 'text/event-stream',
         },
@@ -135,10 +178,6 @@ export function AITutorPage() {
             if (trimmed.startsWith('data: ')) {
               try {
                 const payload = JSON.parse(trimmed.slice(6));
-                if (payload.session_id && payload.session_id !== activeSessionId) {
-                  setActiveSessionId(payload.session_id);
-                  fetchSessions();
-                }
                 if (payload.text) {
                   accumulatedText += payload.text;
                   const currentText = accumulatedText;
@@ -463,6 +502,12 @@ export function AITutorPage() {
                       </div>
                       {m.content ? (
                         <div style={{ position: 'relative' }}>
+                                  {m.file_name && (
+                                    <div className="ai-tutor-file-badge">
+                                      <span className="material-symbols-outlined">attach_file</span>
+                                      {m.file_name}
+                                    </div>
+                                  )}
                           <MathRenderer content={m.content} />
                           {m.isStreaming && (
                             <span
@@ -514,6 +559,14 @@ export function AITutorPage() {
               ))}
             </div>
 
+            {selectedFile && (
+              <div className="ai-tutor-selected-file">
+                <span className="material-symbols-outlined">attach_file</span>
+                <span title={selectedFile.name}>{selectedFile.name}</span>
+                <button type="button" onClick={() => setSelectedFile(null)} aria-label="Remove attached file">×</button>
+              </div>
+            )}
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -522,6 +575,17 @@ export function AITutorPage() {
               className="ai-tutor-input-row"
               style={{ display: 'flex', gap: '10px' }}
             >
+              <input ref={fileInputRef} type="file" accept="image/*,video/*,application/pdf,text/plain" hidden onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+              <button
+                type="button"
+                className="ai-tutor-attach-button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                aria-label="Attach an image, video, PDF, or text file"
+                title="Attach file"
+              >
+                <span className="material-symbols-outlined">attach_file</span>
+              </button>
               <input
                 type="text"
                 className="glass-input"
@@ -533,11 +597,13 @@ export function AITutorPage() {
               />
               <button
                 type="submit"
-                disabled={sending || !inputMessage.trim()}
+                disabled={sending || (!inputMessage.trim() && !selectedFile)}
                 className="btn-primary"
-                style={{ padding: '10px 22px', fontSize: '13.5px' }}
+                style={{ padding: '10px 14px', fontSize: '13.5px' }}
+                aria-label="Send message"
+                title="Send message"
               >
-                Send
+                <span className="material-symbols-outlined">arrow_upward</span>
               </button>
             </form>
           </div>

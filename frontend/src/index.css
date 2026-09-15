@@ -579,6 +579,95 @@ button, input, textarea, select {
   object-fit: contain;
 }
 
+.ai-tutor-input-row {
+  min-width: 0;
+  align-items: center;
+}
+
+.ai-tutor-input-row .glass-input {
+  min-width: 0;
+}
+
+.ai-tutor-attach-button {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-input);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ai-tutor-attach-button:hover,
+.ai-tutor-attach-button:focus-visible {
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+.ai-tutor-selected-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--primary-border);
+  border-radius: 8px;
+  background: var(--primary-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ai-tutor-selected-file > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-tutor-selected-file .material-symbols-outlined {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.ai-tutor-selected-file button {
+  flex: 0 0 auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #F87171;
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.ai-tutor-file-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin-bottom: 8px;
+  color: var(--primary);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-tutor-file-badge .material-symbols-outlined {
+  font-size: 15px;
+}
+
 @media (max-width: 480px) {
   .feed-composer-actions {
     align-items: stretch !important;
@@ -596,6 +685,14 @@ button, input, textarea, select {
 
   .feed-remove-attachment {
     padding-right: 0;
+  }
+
+  .ai-tutor-input-row {
+    gap: 6px !important;
+  }
+
+  .ai-tutor-attach-button {
+    flex-basis: 44px;
   }
 }
 
