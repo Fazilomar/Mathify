@@ -502,6 +502,7 @@ button, input, textarea, select {
 }
 
 .feed-composer-body,
+.feed-upload-preview,
 .feed-attachment-row,
 .feed-composer-actions,
 .feed-media-attachment {
@@ -509,11 +510,73 @@ button, input, textarea, select {
   max-width: 100%;
 }
 
+.feed-upload-preview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-input);
+}
+
+.feed-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--primary);
+}
+
+.feed-attachment-icon {
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.feed-attachment-details {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .feed-attachment-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.feed-attachment-size {
+  color: var(--text-subtle);
+  font-size: 11px;
+}
+
+.feed-remove-attachment {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: #F87171;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.feed-upload-media {
+  width: 100%;
+  max-width: 100%;
+  max-height: 280px;
+  overflow: hidden;
+  background: #0b0b0e;
+}
+
+.feed-upload-media img,
+.feed-upload-media video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 280px;
+  object-fit: contain;
 }
 
 @media (max-width: 480px) {
@@ -529,6 +592,10 @@ button, input, textarea, select {
 
   .feed-attachment-row {
     align-items: flex-start !important;
+  }
+
+  .feed-remove-attachment {
+    padding-right: 0;
   }
 }
 
