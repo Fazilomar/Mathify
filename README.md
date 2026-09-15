@@ -82,3 +82,31 @@ npm install
 npm run dev
 ```
 Open `http://localhost:5173` to test locally.
+
+## Mobile delivery at $0
+
+The frontend includes an installable iOS PWA and a public `/download` page for
+Android. iOS users open the site in Safari and choose **Share -> Add to Home
+Screen**. Android builds are produced by `.github/workflows/build-apk.yml` on
+GitHub-hosted runners. Every `main` build is available as an Actions artifact;
+version tags (`v1.0.0`) also attach an unsigned debug APK to a GitHub Release.
+
+The Capacitor wrapper in `frontend/capacitor.config.json` loads
+`https://mathify-coral.vercel.app`, so merged frontend deployments appear in the
+wrapper without rebuilding it. This requires network access on first load and
+does not provide Play Store distribution or signed release publishing.
+
+```bash
+cd frontend
+npm ci
+npm run build
+npm run lint
+
+cd ..
+python scripts/compress_images.py frontend/public
+```
+
+The Android application ID is `com.aliyudavid.mathify`. Keep it stable if the
+native project is generated later for signed distribution. The frontend and
+backend are deployed as separate Vercel projects, so active routing and cache
+configuration remains in `frontend/vercel.json` and `backend/vercel.json`.

@@ -5,6 +5,7 @@ import MathRenderer from '../components/common/MathRenderer';
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
+  const [activeIdx, setActiveIdx] = useState(0);
 
   if (isAuthenticated) {
     return <Navigate to="/feed" replace />;
@@ -42,7 +43,6 @@ export function LandingPage() {
     },
   ];
 
-  const [activeIdx, setActiveIdx] = useState(0);
   const activeTheorem = theorems[activeIdx];
 
   const pillars = [
