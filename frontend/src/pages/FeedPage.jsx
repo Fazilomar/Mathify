@@ -3,6 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { API } from '../api/client';
 import MathRenderer from '../components/common/MathRenderer';
 
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** unitIndex)).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
 export function FeedPage() {
   const { user, isAuthenticated } = useAuth();
   const [posts, setPosts] = useState([]);
@@ -13,6 +20,7 @@ export function FeedPage() {
   const [content, setContent] = useState('');
   const [latex, setLatex] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFilePreview, setSelectedFilePreview] = useState('');
   const [previewTab, setPreviewTab] = useState('write');
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -27,6 +35,21 @@ export function FeedPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [newPostsAvailable, setNewPostsAvailable] = useState(0);
+
+  const clearSelectedFile = () => {
+    if (selectedFilePreview) URL.revokeObjectURL(selectedFilePreview);
+    setSelectedFile(null);
+    setSelectedFilePreview('');
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (selectedFilePreview) URL.revokeObjectURL(selectedFilePreview);
+    setSelectedFile(file);
+    setSelectedFilePreview(URL.createObjectURL(file));
+    event.target.value = '';
+  };
 
   const categories = [
     { id: 'all', label: 'All Fields' },
@@ -110,7 +133,7 @@ export function FeedPage() {
         setPosts((prev) => [hydratedPost, ...prev]);
         setContent('');
         setLatex('');
-        setSelectedFile(null);
+        clearSelectedFile();
         setPreviewTab('write');
       }
     } catch (err) {
@@ -297,7 +320,7 @@ export function FeedPage() {
             >
               {user?.username?.[0]?.toUpperCase() || 'M'}
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="feed-composer-body" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
                 <button
                   type="button"
@@ -353,22 +376,34 @@ export function FeedPage() {
                     style={{ fontFamily: 'monospace', fontSize: '13px' }}
                   />
 
-                  {/* Attachment indicator */}
+                  {/* Bounded media preview */}
                   {selectedFile && (
-                    <div style={{ fontSize: '12px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>attach_file</span>
-                      {selectedFile.name}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFile(null)}
-                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer' }}
-                      >
-                        remove
-                      </button>
+                    <div className="feed-upload-preview">
+                      <div className="feed-attachment-row">
+                        <span className="material-symbols-outlined feed-attachment-icon">attach_file</span>
+                        <div className="feed-attachment-details">
+                          <span className="feed-attachment-name" title={selectedFile.name}>{selectedFile.name}</span>
+                          <span className="feed-attachment-size">{formatFileSize(selectedFile.size)}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="feed-remove-attachment"
+                          onClick={clearSelectedFile}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="feed-upload-media">
+                        {selectedFile.type.startsWith('video/') ? (
+                          <video src={selectedFilePreview} controls preload="metadata" />
+                        ) : (
+                          <img src={selectedFilePreview} alt="Selected upload preview" />
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                  <div className="feed-composer-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
                     <label
                       style={{
                         display: 'inline-flex',
@@ -385,7 +420,7 @@ export function FeedPage() {
                         type="file"
                         accept="image/*,video/*"
                         style={{ display: 'none' }}
-                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                        onChange={handleFileChange}
                       />
                     </label>
 
@@ -573,11 +608,11 @@ export function FeedPage() {
 
               {/* Media Attachment */}
               {post.media && (
-                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
+                <div className="feed-media-attachment" style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
                   {/\.(mp4|webm|ogg)$/i.test(post.media) ? (
-                    <video src={post.media} controls style={{ width: '100%', maxHeight: '420px', display: 'block' }} />
+                    <video src={post.media} controls style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '420px', display: 'block' }} />
                   ) : (
-                    <img src={post.media} alt="Post attachment" style={{ width: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
+                    <img src={post.media} alt="Post attachment" style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
                   )}
                 </div>
               )}

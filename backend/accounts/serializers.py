@@ -1,6 +1,19 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, Profile, Department
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
+
+class MathifyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Accept the UI's username-or-email field while JWT uses email internally."""
+
+    def to_internal_value(self, data):
+        data = data.copy()
+        identifier = data.get('username') or data.get('email')
+        if identifier:
+            user = CustomUser.objects.filter(username__iexact=identifier).only('email').first()
+            data['email'] = user.email if user else identifier
+        return super().to_internal_value(data)
 
 
 class DepartmentSerializer(serializers.ModelSerializer):

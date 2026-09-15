@@ -491,35 +491,12 @@ export function Navbar() {
         </button>
       </div>
 
-<<<<<<< HEAD
       {/* Mobile Full Slide-In Drawer rendered outside header to avoid backdrop-filter stacking context trap */}
       {showMobileDrawer &&
         createPortal(
-=======
-      {/* Mobile Full Slide-In Drawer */}
-      {showMobileDrawer && (
-        <div
-          className="mobile-drawer-overlay"
-          style={{
-            position: 'fixed',
-            top: 'var(--nav-height)',
-            right: 0,
-            bottom: 'calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))',
-            left: 0,
-            zIndex: 1001,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setShowMobileDrawer(false)}
-        >
->>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
           <div
-            className="mobile-drawer-panel"
+            className="mobile-drawer-overlay"
             style={{
-<<<<<<< HEAD
               position: 'fixed',
               inset: 0,
               zIndex: 99999,
@@ -529,20 +506,6 @@ export function Navbar() {
               display: 'flex',
               justifyContent: 'flex-end',
               animation: 'drawerFadeIn 0.2s ease',
-=======
-              width: '290px',
-              maxWidth: '85vw',
-              height: '100%',
-              maxHeight: '100%',
-              boxSizing: 'border-box',
-              backgroundColor: '#16161B',
-              borderLeft: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
-              boxShadow: '-10px 0 30px rgba(0,0,0,0.8)',
-              overflowY: 'auto',
->>>>>>> 1e1d6dc (feat(frontend): refine learning experience pages)
             }}
             onClick={() => setShowMobileDrawer(false)}
           >
@@ -733,8 +696,9 @@ export function Navbar() {
                 })}
 
                 {isAuthenticated && (
-                  <Link
-                    to="/profile"
+                  <>
+                    <Link
+                      to="/profile"
                     onClick={() => setShowMobileDrawer(false)}
                     style={{
                       display: 'flex',
@@ -750,7 +714,7 @@ export function Navbar() {
                       border: location.pathname === '/profile' ? '1px solid var(--primary-border)' : '1px solid transparent',
                       marginTop: '4px',
                     }}
-                  >
+                    >
                     <span
                       className="material-symbols-outlined"
                       style={{
@@ -761,7 +725,37 @@ export function Navbar() {
                       person
                     </span>
                     <span>My Profile</span>
-                  </Link>
+                    </Link>
+
+                    <Link
+                      to="/download"
+                    onClick={() => setShowMobileDrawer(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '11px 14px',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                      fontSize: '14px',
+                      fontWeight: location.pathname === '/download' ? 600 : 500,
+                      backgroundColor: location.pathname === '/download' ? 'var(--primary-subtle)' : 'transparent',
+                      color: location.pathname === '/download' ? 'var(--primary)' : 'var(--text)',
+                      border: location.pathname === '/download' ? '1px solid var(--primary-border)' : '1px solid transparent',
+                    }}
+                    >
+                    <span
+                      className="material-symbols-outlined"
+                      style={{
+                        fontSize: '20px',
+                        color: location.pathname === '/download' ? 'var(--primary)' : 'var(--text-subtle)',
+                      }}
+                    >
+                      download
+                    </span>
+                    <span>Get App</span>
+                    </Link>
+                  </>
                 )}
               </nav>
 
