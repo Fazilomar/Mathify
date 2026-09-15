@@ -297,7 +297,7 @@ export function FeedPage() {
             >
               {user?.username?.[0]?.toUpperCase() || 'M'}
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="feed-composer-body" style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
                 <button
                   type="button"
@@ -355,20 +355,20 @@ export function FeedPage() {
 
                   {/* Attachment indicator */}
                   {selectedFile && (
-                    <div style={{ fontSize: '12px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="feed-attachment-row" style={{ fontSize: '12px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>attach_file</span>
-                      {selectedFile.name}
+                      <span className="feed-attachment-name" title={selectedFile.name}>{selectedFile.name}</span>
                       <button
                         type="button"
                         onClick={() => setSelectedFile(null)}
-                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer' }}
+                        style={{ background: 'transparent', border: 'none', color: '#F87171', cursor: 'pointer', flexShrink: 0, padding: '4px 0' }}
                       >
                         remove
                       </button>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                  <div className="feed-composer-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
                     <label
                       style={{
                         display: 'inline-flex',
@@ -573,11 +573,11 @@ export function FeedPage() {
 
               {/* Media Attachment */}
               {post.media && (
-                <div style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
+                <div className="feed-media-attachment" style={{ margin: '14px 0', borderRadius: '12px', overflow: 'hidden', maxHeight: '420px', background: 'rgba(0,0,0,0.4)' }}>
                   {/\.(mp4|webm|ogg)$/i.test(post.media) ? (
-                    <video src={post.media} controls style={{ width: '100%', maxHeight: '420px', display: 'block' }} />
+                    <video src={post.media} controls style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '420px', display: 'block' }} />
                   ) : (
-                    <img src={post.media} alt="Post attachment" style={{ width: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
+                    <img src={post.media} alt="Post attachment" style={{ width: '100%', maxWidth: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
                   )}
                 </div>
               )}

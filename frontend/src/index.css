@@ -501,6 +501,37 @@ button, input, textarea, select {
   color: var(--text-subtle);
 }
 
+.feed-composer-body,
+.feed-attachment-row,
+.feed-composer-actions,
+.feed-media-attachment {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.feed-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .feed-composer-actions {
+    align-items: stretch !important;
+    flex-direction: column;
+  }
+
+  .feed-composer-actions label,
+  .feed-composer-actions .btn-primary {
+    width: 100%;
+  }
+
+  .feed-attachment-row {
+    align-items: flex-start !important;
+  }
+}
+
 /* Professional Buttons */
 .btn-primary {
   background: var(--primary);
