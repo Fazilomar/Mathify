@@ -394,20 +394,20 @@ export function ProofsPage() {
         <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ flex: '1 1 300px' }}>
             <div className="badge-academic" style={{ marginBottom: '8px' }}>
-              Formal Proof Studio
+              Math Proofs & Solutions
             </div>
             <h1 style={{ fontSize: '24px', margin: '0 0 6px', fontWeight: 700 }}>
-              Theorem Derivations & Axiom Notebook
+              Step-by-Step Proofs & Formulas
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', maxWidth: '640px', margin: 0, lineHeight: 1.55 }}>
-              Draft rigorous proofs in LaTeX, cite foundational mathematical axioms, and publish preprints for peer consensus.
+              Write step-by-step math proofs, link formulas, and share your solutions with fellow students.
             </p>
           </div>
 
           <button
             onClick={() => {
               if (!isAuthenticated) {
-                showToast('Please sign in to author and publish theorem preprints.');
+                showToast('Please sign in to write and share math proofs.');
                 return;
               }
               setIsComposerOpen(true);
@@ -416,7 +416,7 @@ export function ProofsPage() {
             style={{ padding: '10px 18px', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>draw</span>
-            <span>Draft New Proof</span>
+            <span>Write a Proof</span>
           </button>
         </div>
 
@@ -435,19 +435,19 @@ export function ProofsPage() {
             <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)' }}>
               {allProofs.length}
             </div>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Catalogued Preprints</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Shared Proofs</div>
           </div>
           <div>
             <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)' }}>
               {formulas.length > 0 ? formulas.length : 12}
             </div>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Linked Axioms</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Rules & Formulas</div>
           </div>
           <div>
             <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--primary)' }}>
               Q.E.D.
             </div>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Formal Rigor Standard</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)' }}>Step-by-Step Rigor</div>
           </div>
         </div>
       </div>
@@ -475,7 +475,7 @@ export function ProofsPage() {
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history_edu</span>
-            Preprints ({filteredProofs.length})
+            Proofs ({filteredProofs.length})
           </button>
           <button
             type="button"
@@ -497,7 +497,7 @@ export function ProofsPage() {
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>menu_book</span>
-            Axiom Index ({axiomReference.length})
+            Rules & Formulas ({axiomReference.length})
           </button>
           <button
             type="button"
@@ -519,7 +519,7 @@ export function ProofsPage() {
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>show_chart</span>
-            2D & 3D Graph Studio
+            2D & 3D Graph Plotter
           </button>
         </div>
       </div>

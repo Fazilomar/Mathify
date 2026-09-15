@@ -102,6 +102,16 @@ export function FeedPage() {
       URL.revokeObjectURL(filePreview);
     }
     if (file) {
+      const isVideo = file.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv|avi|ogv)$/i.test(file.name);
+      if (file.size > 50 * 1024 * 1024) {
+        showToast('Media file is too large (max 50 MB).', 'error');
+        setSelectedFile(null);
+        setFilePreview(null);
+        return;
+      }
+      if (isVideo && file.size > 4.5 * 1024 * 1024) {
+        showToast(`Video selected (${(file.size / (1024 * 1024)).toFixed(1)} MB). Note: Serverless limit is 4.5 MB; compressed or short clips upload most reliably.`);
+      }
       setSelectedFile(file);
       setFilePreview(URL.createObjectURL(file));
     } else {
@@ -129,7 +139,7 @@ export function FeedPage() {
       if (latex.trim()) formData.append('latex_content', latex.trim());
       if (selectedFile) {
         formData.append('media', selectedFile);
-        const isVideo = selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(selectedFile.name);
+        const isVideo = selectedFile.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv|avi|ogv)$/i.test(selectedFile.name);
         formData.append('post_type', isVideo ? 'video' : 'image');
       }
 
@@ -148,12 +158,19 @@ export function FeedPage() {
         setLatex('');
         handleClearFile();
         setPreviewTab('write');
+        showToast('✓ Post published successfully!');
+      } else if (res.status === 413) {
+        showToast('This video exceeds the server upload limit (max 4.5 MB on cloud serverless). Please upload a smaller or compressed clip.', 'error');
       } else {
         const err = await res.json().catch(() => ({}));
-        showToast(err.media ? err.media.join(' ') : (err.detail || 'Unable to publish post.'), 'error');
+        const errMsg = err.media
+          ? (Array.isArray(err.media) ? err.media.join(' ') : String(err.media))
+          : (err.detail || err.content || (typeof err === 'object' && Object.values(err)[0]) || 'Unable to publish post.');
+        showToast(String(errMsg), 'error');
       }
     } catch (err) {
       console.error('Failed to create post:', err);
+      showToast('Network error or file upload timeout. If this is a video, ensure it is under 4.5 MB.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -254,14 +271,14 @@ export function FeedPage() {
       if (res.ok || res.status === 204) {
         setPosts((prev) => prev.filter((p) => p.id !== postId));
         setPostToDelete(null);
-        showToast('Publication deleted successfully.', 'success');
+        showToast('Post deleted successfully.', 'success');
       } else {
         const errData = await res.json().catch(() => ({}));
-        showToast(`Unable to delete publication: ${errData.detail || 'Permission denied'}`, 'error');
+        showToast(`Unable to delete post: ${errData.detail || 'Permission denied'}`, 'error');
       }
     } catch (err) {
       console.error('Failed to delete post:', err);
-      showToast('Network error attempting to delete publication.', 'error');
+      showToast('Network error attempting to delete post.', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -284,9 +301,9 @@ export function FeedPage() {
     <div className="feed-shell">
       <section className="feed-hero">
         <div>
-          <div className="feed-kicker"><span className="material-symbols-outlined">auto_awesome</span> The Mathify Commons</div>
-          <h1>Ideas worth proving.</h1>
-          <p>Follow the questions, proofs, and discoveries shaping our mathematical community.</p>
+          <div className="feed-kicker"><span className="material-symbols-outlined">auto_awesome</span> Math Community</div>
+          <h1>Explore, share, and solve math together.</h1>
+          <p>Ask questions, share homework solutions, and learn with students and friends.</p>
         </div>
         <div className="feed-hero-mark" aria-hidden="true">∫</div>
       </section>
@@ -297,13 +314,13 @@ export function FeedPage() {
           <input
             className="feed-search"
             type="search"
-            placeholder="Search ideas, authors, or equations"
+            placeholder="Search posts, topics, or equations"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           {searchTerm && <button className="feed-clear-search" type="button" onClick={() => setSearchTerm('')} aria-label="Clear search">close</button>}
         </div>
-        <div className="feed-count"><strong>{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'publication' : 'publications'}</div>
+        <div className="feed-count"><strong>{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'post' : 'posts'}</div>
       </div>
 
       <div className="feed-categories" role="tablist" aria-label="Feed categories">
@@ -496,11 +513,15 @@ export function FeedPage() {
                           type="file"
                           accept="image/*"
                           style={{ display: 'none' }}
-                          onChange={(e) => handleFileSelect(e.target.files[0])}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                            e.target.value = '';
+                          }}
                         />
                       </label>
 
                       <label
+                        title="Upload short video clip (MP4, MOV, WebM - max 4.5 MB)"
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -519,9 +540,12 @@ export function FeedPage() {
                         <span>Video</span>
                         <input
                           type="file"
-                          accept="video/mp4,video/webm,video/quicktime,video/ogg,video/3gpp"
+                          accept="video/*,video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"
                           style={{ display: 'none' }}
-                          onChange={(e) => handleFileSelect(e.target.files[0])}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                            e.target.value = '';
+                          }}
                         />
                       </label>
                     </div>
@@ -601,11 +625,11 @@ export function FeedPage() {
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>bolt</span>
-              <span>{newPostsAvailable} new preprint{newPostsAvailable > 1 ? 's' : ''} published &bull; Click to update feed</span>
+              <span>{newPostsAvailable} new post{newPostsAvailable > 1 ? 's' : ''} &bull; Click to update feed</span>
             </button>
           )}
           {filteredPosts.map((post) => {
-            const authorDisplay = post.author_username || (typeof post.author === 'string' ? post.author : post.author?.username) || 'Mathematician';
+            const authorDisplay = post.author_username || (typeof post.author === 'string' ? post.author : post.author?.username) || 'Scholar';
             const currentUserId = API.getCurrentUserId() || user?.id;
             const isAuthor = Boolean(
               currentUserId && (
@@ -656,7 +680,7 @@ export function FeedPage() {
                     <button
                       onClick={() => requestDeletePost(post)}
                       disabled={deletingId === post.id}
-                      title="Delete publication"
+                      title="Delete post"
                       style={{
                         background: 'transparent',
                         border: '1px solid transparent',
@@ -891,10 +915,10 @@ export function FeedPage() {
           if (!deletingId) setPostToDelete(null);
         }}
         onConfirm={handleConfirmDelete}
-        title="Delete Publication"
-        message="Are you sure you want to delete this publication? This action cannot be undone and will permanently remove this discussion from the mathematical feed."
-        confirmText="Delete Publication"
-        cancelText="Keep Publication"
+        title="Delete Post"
+        message="Are you sure you want to delete this post? This action cannot be undone."
+        confirmText="Delete Post"
+        cancelText="Keep Post"
         variant="danger"
         isLoading={Boolean(deletingId)}
       />

@@ -129,7 +129,7 @@ class PostSerializer(serializers.ModelSerializer):
 
         if media is not None:
             if media.size > self.MAX_MEDIA_BYTES:
-                raise serializers.ValidationError({'media': 'Media file is too large (max 10MB).'})
+                raise serializers.ValidationError({'media': 'Media file is too large (max 50MB).'})
 
             content_type = getattr(media, 'content_type', '').lower()
             media_name = getattr(media, 'name', '').lower()

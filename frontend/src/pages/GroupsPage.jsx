@@ -863,9 +863,9 @@ export function GroupsPage() {
         >
           {activeGroup ? (
             <>
-              <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '14px', flexShrink: 0 }}>
+              <div className="groups-chat-col-header" style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '10px', flexShrink: 0 }}>
                 {/* Left Side: Rooms Drawer Toggle + Display Picture + Name & Members */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                   <button
                     type="button"
                     className="groups-sidebar-toggle"
@@ -873,7 +873,7 @@ export function GroupsPage() {
                     title="View all study rooms"
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>meeting_room</span>
-                    <span>Rooms</span>
+                    <span className="desktop-only-text">Rooms</span>
                     {groups.length > 0 && (
                       <span className="groups-room-count-pill">
                         {groups.length}
@@ -883,6 +883,7 @@ export function GroupsPage() {
 
                   {/* Group Display Picture */}
                   <div
+                    className="groups-header-avatar"
                     onClick={() => isGroupCreator && groupAvatarInputRef.current?.click()}
                     title={isGroupCreator ? "Click to change room picture" : activeGroup.name}
                     style={{

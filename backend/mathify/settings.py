@@ -176,7 +176,11 @@ STATICFILES_DIRS = [
     d for d in [BASE_DIR / 'static', FRONTEND_DIST / 'assets'] if d.exists()
 ]
 
-USE_SUPABASE_STORAGE = config('USE_SUPABASE_STORAGE', default=False, cast=bool)
+USE_SUPABASE_STORAGE = config(
+    'USE_SUPABASE_STORAGE',
+    default=bool(config('SUPABASE_STORAGE_ACCESS_KEY', default='').strip() or config('SUPABASE_STORAGE_ENDPOINT', default='').strip()),
+    cast=bool
+)
 
 if USE_SUPABASE_STORAGE:
     AWS_ACCESS_KEY_ID = config('SUPABASE_STORAGE_ACCESS_KEY', default='').strip()

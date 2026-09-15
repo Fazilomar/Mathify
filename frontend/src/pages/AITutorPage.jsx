@@ -15,12 +15,12 @@ export function AITutorPage() {
   const messagesEndRef = useRef(null);
 
   const starterPrompts = [
-    { title: "Euler's Identity", prompt: "Explain Euler's identity e^{iπ} + 1 = 0 and its geometric meaning on the unit circle." },
-    { title: "Cauchy-Schwarz Inequality", prompt: "How does the Cauchy-Schwarz inequality apply to inner product spaces and L² functions?" },
-    { title: "Fourier Transform Derivation", prompt: "Derive the continuous Fourier Transform from the Fourier Series step-by-step with LaTeX." },
-    { title: "Irrationality of √2", prompt: "Provide a rigorous step-by-step proof by contradiction that the square root of 2 is irrational." },
-    { title: "Stokes' Generalized Theorem", prompt: "Explain Stokes' theorem on differential forms and how it generalizes Green and Gauss theorems." },
-    { title: "Sylow Theorems", prompt: "State and explain the intuition behind Sylow's first theorem in group theory with an example." },
+    { title: "Quadratic Equations", prompt: "Explain how to solve ax² + bx + c = 0 using the quadratic formula with an easy step-by-step example." },
+    { title: "Pythagorean Theorem", prompt: "Explain why a² + b² = c² works for right triangles with an intuitive explanation." },
+    { title: "Adding Fractions", prompt: "Show me how to add 2/3 + 4/5 step-by-step with common denominators." },
+    { title: "Intro to Derivatives", prompt: "Explain what a derivative is in simple terms and how to find the derivative of x²." },
+    { title: "Why √2 is Irrational", prompt: "Can you explain the simple proof that the square root of 2 is irrational so anyone can understand it?" },
+    { title: "Word Problems into Equations", prompt: "How do I turn an algebra word problem into an equation? Walk me through a clear example." },
   ];
 
   const quickSymbols = [
@@ -453,10 +453,10 @@ export function AITutorPage() {
                 type="button"
                 className="ai-tutor-sidebar-toggle"
                 onClick={() => setSidebarOpen((prev) => !prev)}
-                title="Toggle Research Sessions"
+                title="Past chats"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>history</span>
-                <span>Sessions</span>
+                <span className="desktop-only-text">Sessions</span>
                 {sessions.length > 0 && (
                   <span className="ai-tutor-session-pill">
                     {sessions.length}
@@ -482,11 +482,11 @@ export function AITutorPage() {
               </div>
               <div style={{ minWidth: 0, overflow: 'hidden' }}>
                 <h2 style={{ fontSize: '14.5px', margin: 0, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  Mathify AI Theorem Research Mentor
+                  AI Math Tutor
                 </h2>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981', flexShrink: 0 }} />
-                  <span>Gemini Reasoning Engine</span>
+                  <span>Ready to help</span>
                 </div>
               </div>
             </div>
@@ -497,7 +497,7 @@ export function AITutorPage() {
                 onClick={createNewSession}
                 className="btn-secondary"
                 style={{ padding: '5px 10px', fontSize: '11.5px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                title="New Research Session"
+                title="New Chat Session"
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>add</span>
                 <span className="desktop-only-text">New</span>
@@ -530,10 +530,10 @@ export function AITutorPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>history_edu</span>
                 </div>
                 <h3 className="ai-tutor-empty-title" style={{ fontSize: '20px', fontWeight: 700, marginBottom: '6px', color: 'var(--text)' }}>
-                  How can I assist your research?
+                  What math problem can I help you with today?
                 </h3>
                 <p className="ai-tutor-empty-desc" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
-                  Ask for LaTeX derivations, topological decompositions, Olympiad step-by-step solutions, or lemma verifications.
+                  Ask any math question! You can paste homework problems, ask for step-by-step explanations, or pick a topic below.
                 </p>
 
                 {/* Responsive Starter Grid */}
@@ -596,11 +596,11 @@ export function AITutorPage() {
                       }}
                     >
                       <div style={{ fontSize: '11px', fontWeight: 600, color: isUser ? 'var(--primary)' : 'var(--text-subtle)', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span>{isUser ? (user?.username || 'You') : 'Mathify AI Mentor'}</span>
+                        <span>{isUser ? (user?.username || 'You') : 'Mathify AI Tutor'}</span>
                         {m.isStreaming && (
                           <span style={{ fontSize: '10.5px', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />
-                            Live derivation...
+                            Thinking & solving...
                           </span>
                         )}
                       </div>

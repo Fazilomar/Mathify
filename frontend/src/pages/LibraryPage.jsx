@@ -181,13 +181,13 @@ export function LibraryPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="badge-academic" style={{ marginBottom: '10px' }}>
-              Mathematical Manuscript Archives
+              Study Materials & Library
             </div>
             <h1 style={{ fontSize: '26px', margin: '0 0 8px', fontWeight: 700 }}>
-              Academic Library & Research Preprints
+              Textbooks, Notes & Problem Sets
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '14.5px', maxWidth: '640px', margin: 0, lineHeight: 1.55 }}>
-              Access community preprints, lecture monographs, problem sets, and formal mathematical papers in real time.
+              Read and download textbooks, lecture notes, formula sheets, and past question papers.
             </p>
           </div>
 
@@ -199,14 +199,14 @@ export function LibraryPage() {
               style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px' }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
-              Publish Manuscript
+              Upload Material
             </button>
             <div style={{ width: '1px', height: '32px', backgroundColor: 'var(--border)' }} />
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--primary)' }}>
                 {resources.length}
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Catalogued Works</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Study Materials</div>
             </div>
           </div>
         </div>
@@ -504,7 +504,7 @@ export function LibraryPage() {
                     className="btn-primary"
                     style={{ padding: '6px 14px', fontSize: '12.5px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
-                    <span>Open Manuscript</span>
+                    <span>Open Link</span>
                     <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>open_in_new</span>
                   </a>
                 ) : item.file ? (
@@ -519,7 +519,7 @@ export function LibraryPage() {
                     <span>Download PDF</span>
                   </a>
                 ) : (
-                  <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Archived Entry</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Saved Entry</span>
                 )}
               </div>
             </article>
@@ -527,7 +527,7 @@ export function LibraryPage() {
         </div>
       )}
 
-      {/* Publish Manuscript Modal */}
+      {/* Upload Material Modal */}
       {showPublishModal && (
         <div
           style={{
@@ -559,10 +559,10 @@ export function LibraryPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0, color: 'var(--text)' }}>
-                  Publish Academic Manuscript
+                  Upload Study Material
                 </h2>
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                  Contribute notes, papers, or problem sets to the live mathematical repository.
+                  Upload textbooks, lecture notes, or problem sets to share with other students.
                 </p>
               </div>
               <button
@@ -627,11 +627,11 @@ export function LibraryPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    External URL / Preprint Link
+                    External Link / PDF URL
                   </label>
                   <input
                     type="url"
-                    placeholder="https://arxiv.org/..."
+                    placeholder="https://..."
                     className="glass-input"
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
@@ -640,7 +640,7 @@ export function LibraryPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    Upload from device
+                    Upload file from device
                   </label>
                   <label className="library-file-picker">
                     <span className="material-symbols-outlined">upload_file</span>
@@ -656,11 +656,11 @@ export function LibraryPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                  Abstract / Overview
+                  Description / Overview
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Provide an executive mathematical summary or prerequisites..."
+                  placeholder="Provide a short description of what this material covers..."
                   className="glass-input"
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
@@ -683,7 +683,7 @@ export function LibraryPage() {
                   className="btn-primary"
                   style={{ padding: '9px 20px', fontSize: '13.5px' }}
                 >
-                  {publishing ? 'Publishing...' : 'Publish to Repository'}
+                  {publishing ? 'Uploading...' : 'Upload Material'}
                 </button>
               </div>
             </form>
