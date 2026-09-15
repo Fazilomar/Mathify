@@ -81,11 +81,16 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 def get_frontend_url(request, state_frontend=None):
+    allowed_app_redirect = 'mathify://oauth/callback'
     if state_frontend:
-        return state_frontend.rstrip('/')
+        parsed = urllib.parse.urlparse(state_frontend)
+        if state_frontend == allowed_app_redirect or parsed.scheme in {'http', 'https'}:
+            return state_frontend.rstrip('/')
     req_param = request.GET.get('frontend_redirect', '').strip()
     if req_param:
-        return req_param.rstrip('/')
+        parsed = urllib.parse.urlparse(req_param)
+        if req_param == allowed_app_redirect or parsed.scheme in {'http', 'https'}:
+            return req_param.rstrip('/')
     header_origin = request.headers.get('origin') or request.headers.get('referer')
     if header_origin:
         try:

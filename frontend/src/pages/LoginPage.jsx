@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../api/client';
+import { startOAuth } from '../utils/oauth';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -25,8 +26,12 @@ export function LoginPage() {
   }, [location.search]);
 
   const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const googleOAuthUrl = `${API_BASE}/api/accounts/oauth/google/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
-  const microsoftOAuthUrl = `${API_BASE}/api/accounts/oauth/microsoft/login/?frontend_redirect=${encodeURIComponent(frontendOrigin)}`;
+  const handleOAuth = (provider) => {
+    setError('');
+    startOAuth(provider, API_BASE, frontendOrigin).catch(() => {
+      setError('Unable to open the sign-in provider. Please try again.');
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,7 +153,8 @@ export function LoginPage() {
         {/* OAuth Social Logins */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <a
-            href={googleOAuthUrl}
+            href="/login"
+            onClick={(event) => { event.preventDefault(); handleOAuth('google'); }}
             className="btn-secondary"
             style={{
               display: 'flex',
@@ -176,7 +182,8 @@ export function LoginPage() {
           </a>
 
           <a
-            href={microsoftOAuthUrl}
+            href="/login"
+            onClick={(event) => { event.preventDefault(); handleOAuth('microsoft'); }}
             className="btn-secondary"
             style={{
               display: 'flex',
