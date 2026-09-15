@@ -61,7 +61,7 @@ jobs:
           npx cap sync android
 
       - name: Build debug APK
-        run: ./android/gradlew --no-daemon --stacktrace assembleDebug
+        run: cd android && ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Name release artifact
         run: cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/mathify-debug.apk
