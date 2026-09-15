@@ -1339,6 +1339,19 @@ button, input, textarea, select {
   width: 100%;
 }
 
+.groups-messages-area {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.groups-composer-area {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
 /* Groups Page Mobile Off-Canvas Drawer & Controls */
 .groups-sidebar-toggle,
 .groups-sidebar-close,
@@ -1367,40 +1380,61 @@ button, input, textarea, select {
     padding: 7px 10px !important;
   }
 
-  .groups-page-main {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
-    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
-    overflow: hidden !important;
-  }
-
-  .groups-page-container {
-    padding: 0 !important;
-    max-width: 100% !important;
-    height: 100% !important;
-    flex: 1 1 100% !important;
-  }
-
   .desktop-only-banner {
     display: none !important;
   }
 
+  /* Fixed viewport boundary on mobile/tablet to prevent document scrolling */
+  .groups-page-main {
+    position: fixed !important;
+    top: var(--nav-height) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: calc(100dvh - var(--nav-height)) !important;
+    max-height: calc(100dvh - var(--nav-height)) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    z-index: 10;
+  }
+
+  .groups-page-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
   .groups-shell {
     height: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
   }
 
   .groups-shell .groups-layout {
     display: flex !important;
     flex-direction: column !important;
-    flex: 1 1 100% !important;
+    flex: 1 1 0% !important;
     height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
     gap: 0 !important;
     position: relative !important;
+    overflow: hidden !important;
   }
 
   .groups-sidebar-col {
@@ -1474,36 +1508,86 @@ button, input, textarea, select {
     flex-direction: column !important;
     width: 100% !important;
     height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
     border: none !important;
     border-radius: 0 !important;
-    padding: 12px 14px !important;
+    padding: 10px 12px 6px !important;
     background: #111115 !important;
-    flex: 1 1 100% !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
+  }
+
+  .groups-messages-area {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 6px !important;
+  }
+
+  .groups-composer-area {
+    flex-shrink: 0 !important;
+    margin-top: auto !important;
+    padding: 8px 6px max(6px, var(--safe-bottom)) !important;
+    background: #111115 !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 5 !important;
   }
 }
 
 @media (max-width: 768px) {
-  /* AI Tutor: Uncluttered fluid layout, full-viewport breathing room */
-  .full-height-main {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-    min-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
-    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height) - var(--safe-bottom)) !important;
+  /* Prevent background bounce when scrolling in chat/tutor */
+  body:has(.groups-page-main),
+  body:has(.full-height-main) {
     overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+    height: 100% !important;
   }
 
+  /* Fixed Viewport Boundaries Above BottomNav */
+  .groups-page-main,
+  .full-height-main {
+    position: fixed !important;
+    top: var(--nav-height) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: var(--bottom-nav-height) !important;
+    width: 100% !important;
+    height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height)) !important;
+    max-height: calc(100dvh - var(--nav-height) - var(--bottom-nav-height)) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    z-index: 10;
+  }
+
+  .groups-page-container,
   .full-height-container {
     padding: 0 !important;
+    margin: 0 !important;
     max-width: 100% !important;
+    width: 100% !important;
     height: 100% !important;
-    flex: 1 1 100% !important;
+    max-height: 100% !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .ai-tutor-shell {
     height: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
     width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    flex: 1 1 0% !important;
   }
 
   .ai-tutor-layout {
@@ -1512,8 +1596,12 @@ button, input, textarea, select {
     box-shadow: none !important;
     position: relative !important;
     height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
     display: flex !important;
     flex-direction: column !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
     background: #111115 !important;
   }
 
@@ -1579,15 +1667,22 @@ button, input, textarea, select {
   }
 
   .ai-tutor-chat {
-    flex: 1;
-    min-height: 0;
-    height: 100%;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    background: #111115 !important;
+    padding: 10px 12px 6px !important;
   }
 
   .ai-tutor-chat-header {
     flex-wrap: nowrap;
     gap: 8px;
     padding: 10px 12px !important;
+    flex-shrink: 0 !important;
   }
 
   .ai-tutor-latex-badge {
@@ -1607,9 +1702,14 @@ button, input, textarea, select {
     white-space: nowrap;
   }
 
+  .groups-messages-area,
   .ai-tutor-messages {
-    min-height: 0;
-    padding: 14px 12px !important;
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px 8px !important;
     gap: 12px !important;
   }
 
@@ -1624,21 +1724,49 @@ button, input, textarea, select {
     font-size: 13.5px;
   }
 
+  /* Anchored Composer docked above BottomNav */
+  .groups-composer-area,
   .ai-tutor-composer {
-    padding: 10px 12px !important;
+    flex-shrink: 0 !important;
+    margin-top: auto !important;
+    padding: 8px 8px max(6px, var(--safe-bottom)) !important;
+    background: #111115 !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 5 !important;
   }
 
+  .groups-composer-area .symbol-chip,
+  .ai-tutor-composer .symbol-chip {
+    padding: 2px 7px !important;
+    font-size: 11.5px !important;
+  }
+
+  .group-chat-form,
   .ai-tutor-input-row {
     display: flex !important;
     flex-direction: row !important;
-    gap: 8px !important;
-    align-items: center;
+    gap: 6px !important;
+    align-items: center !important;
   }
 
-  .ai-tutor-input-row .btn-primary {
-    width: auto !important;
-    padding: 10px 18px !important;
-    flex-shrink: 0;
+  .group-chat-form .glass-input,
+  .ai-tutor-input-row .glass-input {
+    min-width: 0 !important;
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+    border-radius: 8px !important;
+    flex: 1 1 auto !important;
+  }
+
+  .group-attach-button,
+  .group-send-button,
+  .ai-tutor-attach-button,
+  .ai-tutor-send-button {
+    width: 38px !important;
+    height: 38px !important;
+    flex: 0 0 38px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
   }
 }
 

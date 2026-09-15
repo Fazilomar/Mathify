@@ -73,6 +73,13 @@ export function GroupsPage() {
   );
 
   const chatScrollRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [messages.length, activeGroup?.id]);
 
   const quickSymbols = [
     { label: '∀', code: '\\forall ' },
@@ -859,7 +866,7 @@ export function GroupsPage() {
         {/* Right Column: Selected Group Live Discussion & Collaboration */}
         <div
           className="groups-chat-col card"
-          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', backgroundColor: '#18181D', minHeight: 0 }}
+          style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', backgroundColor: '#18181D', minHeight: 0, overflow: 'hidden' }}
         >
           {activeGroup ? (
             <>
@@ -1362,7 +1369,7 @@ export function GroupsPage() {
                 );
               })()}
 
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div ref={messagesContainerRef} className="groups-messages-area" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '18px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {displayedMessages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--primary)', opacity: 0.8, marginBottom: '8px' }}>forum</span>
@@ -1589,7 +1596,7 @@ export function GroupsPage() {
                 <div ref={chatScrollRef} />
               </div>
 
-              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="groups-composer-area" style={{ paddingTop: '14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
                 {!isGroupMember ? (
                   <div
                     style={{

@@ -13,6 +13,7 @@ export function AITutorPage() {
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const starterPrompts = [
     { title: "Quadratic Equations", prompt: "Explain how to solve ax² + bx + c = 0 using the quadratic formula with an easy step-by-step example." },
@@ -95,7 +96,9 @@ export function AITutorPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }, [messages, sending]);
 
   const handleAttachmentChange = (event) => {
